@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import  {postFeedback} from "@/api/feedbackApi";
 const Index = () => {
   const [feedback, setFeedback] = useState("");
   const [citizenProvince, setCitizenProvince] = useState("");
@@ -40,8 +40,26 @@ const Index = () => {
       toast.error("Nyamuneka wujuje ibisabwa.");
       return;
     }
+    postFeedback({
+      feedback,
+      citizenProvince,
+      citizenDistrict,
+      citizenSector,
+      citizenCell,
+      citizenVillage,
+      citizenEmail,
+      citizenPhone,
+    })
+    .then((response) => {
+      console.log("Feedback sent successfully:", response);
+      toast.success("Ibitekerezo byawe byoherejwe neza!");
+    })
+    .catch((error) => {
+      console.error("Error sending feedback:", error);
+      toast.error("Habayeho ikosa mu kohereza ibitekerezo.");
+    })
     // Submit logic here (API call)
-    toast.success("Thank you for your feedback!");
+   
     setFeedback("");
     setCitizenProvince("");
     setCitizenDistrict("");
