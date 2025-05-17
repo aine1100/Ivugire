@@ -21,7 +21,7 @@ async function createFeedBack(req,res){
             citizenEmail,
             citizenPhone
         })
-        await createFeedBack.save()
+        await citizenFeedBack.save()
 
         if(citizenEmail){
             const transporter=nodemailer.createTransport({
