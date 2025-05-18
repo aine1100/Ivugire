@@ -1,7 +1,7 @@
 const complaintModel=require("../model/complaint")
 const {v4:uuidv4}=require("uuid")
 const nodemailer=require("nodemailer")
-const {validateInfo}=require("../utils/format")
+const {validateCitizenInfo}=require("../utils/format")
 
 async function createComplaint(req,res){
     try{
@@ -10,7 +10,7 @@ async function createComplaint(req,res){
         if(!complaint || !complaintType || !citizenCountryId || !citizenProvince || !citizenDistrict || !citizenCell || !citizenVillage){
             return res.status(400).json({message:"Please fill in all required fields"})
         }
-        validateInfo(citizenEmail, citizenPhone, citizenCountryId, res)
+        validateCitizenInfo(citizenEmail, citizenPhone, citizenCountryId, res)
 
         const citizenComplaint= new complaintModel({
             complaint,

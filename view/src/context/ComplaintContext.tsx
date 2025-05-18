@@ -9,8 +9,9 @@ export interface Complaint {
   phoneNumber: string;
   district: string;
   sector: string;
+  cell:string;
+  village:string;
   serviceType: string;
-  category: string;
   description: string;
   status: "Submitted" | "Under Review" | "In Progress" | "Resolved" | "Rejected";
   createdAt: string;
@@ -27,52 +28,9 @@ interface ComplaintContextType {
 
 const ComplaintContext = createContext<ComplaintContextType | undefined>(undefined);
 
-// Mock data for initial complaints
-const initialComplaints: Complaint[] = [
-  {
-    id: "CES-2023-001",
-    fullName: "Uwimana Jean",
-    nationalIdOrEmail: "1198780012345678",
-    phoneNumber: "0789123456",
-    district: "Kicukiro",
-    sector: "Niboye",
-    serviceType: "Water Supply",
-    category: "Service Interruption",
-    description: "No water supply in our area for the past 3 days.",
-    status: "In Progress",
-    createdAt: "2023-05-10T09:00:00Z",
-  },
-  {
-    id: "CES-2023-002",
-    fullName: "Mutesi Alice",
-    nationalIdOrEmail: "alice.mutesi@gmail.com",
-    phoneNumber: "0788234567",
-    district: "Gasabo",
-    sector: "Remera",
-    serviceType: "Electricity",
-    category: "Billing Issue",
-    description: "I was charged for electricity I did not use.",
-    status: "Submitted",
-    createdAt: "2023-05-12T14:30:00Z",
-  },
-  {
-    id: "CES-2023-003",
-    fullName: "Hakizimana Eric",
-    nationalIdOrEmail: "eric.hakizimana@yahoo.com",
-    phoneNumber: "0738345678",
-    district: "Nyarugenge",
-    sector: "Nyarugenge",
-    serviceType: "Roads",
-    category: "Maintenance Request",
-    description: "Large potholes on the main road near the market.",
-    status: "Resolved",
-    createdAt: "2023-05-01T10:15:00Z",
-    response: "The road maintenance team has filled the potholes. Thank you for reporting this issue."
-  }
-];
 
 export const ComplaintProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [complaints, setComplaints] = useState<Complaint[]>(initialComplaints);
+  const [complaints, setComplaints] = useState<Complaint[]>();
 
   const addComplaint = (newComplaint: Omit<Complaint, "id" | "status" | "createdAt">): string => {
     const id = `CES-${new Date().getFullYear()}-${String(complaints.length + 1).padStart(3, '0')}`;
