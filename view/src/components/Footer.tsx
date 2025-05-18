@@ -8,10 +8,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center space-x-2 mb-4">
-              <div className="h-8 w-8 bg-green-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <span className="font-bold text-lg">CES Rwanda</span>
+              <span className="font-bold text-lg">Ivugire</span>
             </div>
             <p className="text-gray-600">
               Sisitemu yo gutanga no gukurikirana ibibazo n'ibitekerezo ku mirimo ya Leta mu Rwanda.
