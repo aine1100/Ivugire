@@ -64,8 +64,12 @@ const complaintSchema=new mongoose.Schema({
  },
  responseDate:{
    type:Date,
-   default:Date.now
+  
  },
+ postingDate:{
+   type:Date,
+   default:Date.now
+ }
 
 })
 

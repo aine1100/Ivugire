@@ -42,3 +42,37 @@ export async function createComplaint(
     throw error;
   }
 }
+
+export async function trackComplaintById({trackingCode}:{trackingCode:string}){
+  try{
+    const url = `${import.meta.env.VITE_BACKEND_URL}/api/complaints/tracking/${trackingCode}`;
+    console.log('Tracking URL:', url);
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      }
+    });
+
+    console.log('Tracking Response Status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      });
+      throw new Error(errorData?.message || `Failed to view complaint: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log("Complaint status got successfully:", data);
+    return data;
+
+  }catch(error){
+    console.error("Error tracking complaint:", error);
+    throw error;
+  }
+}
