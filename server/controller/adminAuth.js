@@ -55,8 +55,21 @@ async function loginAdmin(req,res){
     }
 }
 
+async function logout(req,res){
+    try{
+        // Since we're using JWT tokens, we don't need to do anything on the server side
+        // The client will remove the token from localStorage
+        res.status(200).json({
+            message: "Logout successful"
+        });
+    }catch(error){
+        console.log(error)
+        res.status(500).json({message:"Internal server error"})
+    }
+}
 
 module.exports={
     registerAdmin,
-    loginAdmin
+    loginAdmin,
+    logout
 }

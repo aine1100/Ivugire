@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
+import { login } from "@/api/authApi";
 
 const AdminLogin = () => {
   const { toast } = useToast();
@@ -24,15 +24,15 @@ const AdminLogin = () => {
     });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // In a real app, you would validate credentials against a server
-    // For this MVP, we'll simulate a login with a timeout
-    setTimeout(() => {
-      // Mock credentials for demo
-      if (formData.email === "admin@cesrwanda.gov.rw" && formData.password === "admin123") {
+    try {
+      const response = await login(formData);
+      if (response.success) {
+        // Store the token in localStorage or your preferred storage method
+        localStorage.setItem('token', response.token || '');
         toast({
           title: "Login Successful",
           description: "Welcome to the CES Admin Dashboard",
@@ -41,12 +41,19 @@ const AdminLogin = () => {
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid email or password. Please try again.",
+          description: response.message || "Invalid credentials",
           variant: "destructive",
         });
       }
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: error instanceof Error ? error.message : "An error occurred during login",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -55,9 +62,8 @@ const AdminLogin = () => {
         <Card>
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-center mb-4">
-            <div className="h-24 w-24  rounded-full flex items-center justify-center">
-              <img src="ivugire.svg" alt="Logo"
-                      className="object-cover h-full w-full"/>
+              <div className="h-24 w-24 rounded-full flex items-center justify-center">
+                <img src="ivugire.svg" alt="Logo" className="object-cover h-full w-full" />
               </div>
             </div>
             <CardTitle className="text-2xl text-center">Staff Login</CardTitle>
@@ -101,6 +107,7 @@ const AdminLogin = () => {
                   type="checkbox"
                   id="remember"
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  aria-label="Remember me"
                 />
                 <Label htmlFor="remember">Remember me</Label>
               </div>
