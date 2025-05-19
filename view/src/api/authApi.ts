@@ -6,7 +6,6 @@ interface LoginCredentials {
 }
 
 interface LoginResponse {
-  success: boolean;
   message: string;
   token?: string;
 }
@@ -27,6 +26,11 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 
     if (!response.ok) {
       throw new Error(data.message || 'Login failed');
+    }
+
+    // Store the token if it exists
+    if (data.token) {
+      localStorage.setItem('token', data.token);
     }
 
     return data;

@@ -30,21 +30,14 @@ const AdminLogin = () => {
 
     try {
       const response = await login(formData);
-      if (response.success) {
-        // Store the token in localStorage or your preferred storage method
-        localStorage.setItem('token', response.token || '');
-        toast({
-          title: "Login Successful",
-          description: "Welcome to the CES Admin Dashboard",
-        });
+      toast({
+        title: "Login Successful",
+        description: response.message || "Welcome to the CES Admin Dashboard",
+      });
+      
+      setTimeout(() => {
         navigate("/admin/dashboard");
-      } else {
-        toast({
-          title: "Login Failed",
-          description: response.message || "Invalid credentials",
-          variant: "destructive",
-        });
-      }
+      }, 1000);
     } catch (error) {
       toast({
         title: "Login Failed",

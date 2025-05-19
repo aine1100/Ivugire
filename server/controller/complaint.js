@@ -105,34 +105,120 @@ async function updateComplaintStatus(req,res){
         },{
             new:true
         })
+
+        // Send email notification if user provided email
+        if(updateComplaint.citizenEmail){
+            const transporter=nodemailer.createTransport({
+                service:"gmail",
+                auth:{
+                    user:process.env.EMAIL,
+                    pass:process.env.PASSWORD
+                }
+            })
+
+            const emailContent = `
+                Dear Citizen,
+                
+                Your complaint (Tracking Code: ${updateComplaint.trackingCode}) has been updated.
+                
+                New Status: ${status}
+                
+                You can track your complaint using your tracking code.
+                
+                Best regards,
+                Citizen Help Desk Team
+            `
+
+            await transporter.sendMail({
+                from:`"Citizen Help Desk"<${process.env.EMAIL}>`,
+                to:updateComplaint.citizenEmail,
+                subject:"Complaint Status Update",
+                text:emailContent
+            })
+
+            transporter.verify((error,success)=>{
+                if(error){
+                    console.log("Email sending error:", error)
+                }else{
+                    console.log("Status update email sent successfully")
+                }
+            })
+        }
+
         res.status(200).json({
             message:"Complaint status updated successfully",
             updateComplaint
         })
 
-
     }catch(err){
         console.log(err)
         res.status(500).json({message:"Internal server error"})
     }
-
 }
 
 async function updateComplaintResponse(req,res){
     try{
         const {_id}=req.params
         const {response, adminResponder}=req.body
+        
         const updateComplaint=await complaintModel.findByIdAndUpdate(_id,{
             response,
-            adminResponder},{
-                new:true
-        
+            adminResponder
+        },{
+            new:true
         })
+
+        // Send email notification if user provided email
+        if(updateComplaint.citizenEmail){
+            const transporter=nodemailer.createTransport({
+                service:"gmail",
+                auth:{
+                    user:process.env.EMAIL,
+                    pass:process.env.PASSWORD
+                }
+            })
+
+            const emailContent = `
+                Dear Citizen,
+                
+                Your complaint (Tracking Code: ${updateComplaint.trackingCode}) has received a response.
+                
+                Response from ${adminResponder}:
+                ${response}
+                
+                You can track your complaint using your tracking code.
+                
+                Best regards,
+                Citizen Help Desk Team
+            `
+
+            await transporter.sendMail({
+                from:`"Citizen Help Desk"<${process.env.EMAIL}>`,
+                to:updateComplaint.citizenEmail,
+                subject:"Complaint Response Update",
+                text:emailContent
+            })
+
+            transporter.verify((error,success)=>{
+                if(error){
+                    console.log("Email sending error:", error)
+                }else{
+                    console.log("Response update email sent successfully")
+                }
+            })
+        }
+
+        res.status(200).json({
+            message:"Complaint response updated successfully",
+            updateComplaint
+        })
+
     }catch(err){
         console.log(err)
         res.status(500).json({message:"Internal server error"})
+    }
 }
-}
+
 module.exports={
     createComplaint,
     getAllComplaints,

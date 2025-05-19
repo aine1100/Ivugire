@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useComplaints, Complaint } from "@/context/ComplaintContext";
+import { useComplaints } from "@/context/ComplaintContext";
 import StatusBadge from "@/components/StatusBadge";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,40 +21,140 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { ChartContainer } from "@/components/ui/chart";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getAllComplaints, getAllFeedback, updateComplaintStatus } from "@/api/adminApi";
+
+const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
+
+interface ApiResponse {
+  status: string;
+  provinces?: string[];
+  districts?: string[];
+  sectors?: string[];
+  cells?: string[];
+  villages?: string[];
+}
+
+// Define Status type at the top level
+type Status = "Submitted" | "Under Review" | "In Progress" | "Resolved" | "Rejected";
+
+interface Complaint {
+  _id: string;
+  complaint: string;
+  complaintType: string;
+  citizenCountryId: string;
+  citizenProvince: string;
+  citizenDistrict: string;
+  citizenSector: string;
+  citizenCell: string;
+  citizenVillage: string;
+  citizenEmail: string;
+  citizenPhone: string;
+  trackingCode: string;
+  status: Status;
+  responseDate?: string;
+  postingDate: string;
+  __v: number;
+}
+
+interface Feedback {
+  _id: string;
+  feedback: string;
+  citizenProvince: string;
+  citizenDistrict: string;
+  citizenSector: string;
+  citizenCell: string;
+  citizenVillage: string;
+  citizenEmail: string;
+  citizenPhone: string;
+  __v: number;
+}
+
+interface ProvinceStats {
+  total: number;
+  byStatus: Record<Status, number>;
+  districts: Record<string, {
+    total: number;
+    byStatus: Record<Status, number>;
+  }>;
+}
 
 const Admin = () => {
-  const { complaints, updateComplaintStatus } = useComplaints();
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
   const [filters, setFilters] = useState({
     searchTerm: "",
-    status: "all",
+    status: "all" as "all" | Status,
     category: "all",
     district: "all",
+    province: "all"
   });
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [responseText, setResponseText] = useState("");
-  const [newStatus, setNewStatus] = useState<Complaint["status"]>("Submitted");
+  const [newStatus, setNewStatus] = useState<Status>("Submitted");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [currentView, setCurrentView] = useState("dashboard");
-  
-  // Mock feedback data
-  const [feedbackItems] = useState([
-    { id: 1, text: "Urubuga rwiza cyane kandi rwihuse, murakoze!", date: "2023-05-15T14:30:00" },
-    { id: 2, text: "Nabonye igisubizo ku kibazo cyanjye vuba, murakoze!", date: "2023-05-14T09:22:00" },
-    { id: 3, text: "Igihe cyo gutegereza ni kirekire, mushobora kucyihutisha?", date: "2023-05-13T16:45:00" },
-    { id: 4, text: "Mfite ikibazo cyo kwiyandikisha kuri iyi serivisi.", date: "2023-05-12T11:05:00" },
-    { id: 5, text: "Système irakora neza cyane n'ubundi murakoze.", date: "2023-05-11T08:30:00" },
-  ]);
-
-  // Charts data
-  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [statusCounts, setStatusCounts] = useState<Record<Status, number>>({
+    "Submitted": 0,
+    "Under Review": 0,
+    "In Progress": 0,
+    "Resolved": 0,
+    "Rejected": 0
+  });
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
-  const [districtData, setDistrictData] = useState<Record<string, number>>({});
+  const [provinceStats, setProvinceStats] = useState<Record<string, ProvinceStats>>({});
+  const [districtStats, setDistrictStats] = useState<Record<string, {
+    total: number;
+    byStatus: Record<Status, number>;
+  }>>({});
+  const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
+  const [locations, setLocations] = useState<{
+    provinces: string[];
+    districts: string[];
+  }>({
+    provinces: [],
+    districts: [],
+  });
+
+  const [isLoading, setIsLoading] = useState({
+    provinces: false,
+    districts: false,
+  });
+
+  const [feedbackStats, setFeedbackStats] = useState<{
+    total: number;
+    byProvince: Record<string, number>;
+    byDistrict: Record<string, number>;
+  }>({
+    total: 0,
+    byProvince: {},
+    byDistrict: {}
+  });
+
+  // Add getStatusCount function
+  const getStatusCount = (status: Status) => {
+    return statusCounts[status] || 0;
+  };
+
+  // Update the query to use proper typing
+  const { data: complaintsData, isLoading: isLoadingComplaints, error: complaintsError } = useQuery({
+    queryKey: ['complaints'],
+    queryFn: getAllComplaints,
+    select: (data) => data.map((complaint: Complaint) => ({
+      ...complaint,
+      status: complaint.status as Status
+    }))
+  });
+
+  // Fetch feedback
+  const { data: feedbackData, isLoading: isLoadingFeedback, error: feedbackError } = useQuery({
+    queryKey: ['feedback'],
+    queryFn: getAllFeedback
+  });
 
   // Get the current tab from URL
   useEffect(() => {
@@ -69,69 +168,197 @@ const Admin = () => {
     }
   }, [location.search]);
 
+  // Update useEffect for filtering
   useEffect(() => {
-    // Apply filters to complaints
-    let results = [...complaints];
+    if (!complaintsData) return;
 
-    // Filter by search term
+    // Apply filters
+    let results = [...complaintsData];
+
     if (filters.searchTerm) {
       const term = filters.searchTerm.toLowerCase();
       results = results.filter(
         (complaint) =>
-          complaint.fullName.toLowerCase().includes(term) ||
-          complaint.id.toLowerCase().includes(term) ||
-          complaint.description.toLowerCase().includes(term)
+          (complaint.citizenEmail?.toLowerCase().includes(term) || false) ||
+          (complaint.trackingCode.toLowerCase().includes(term)) ||
+          (complaint.complaint?.toLowerCase().includes(term) || false)
       );
     }
 
-    // Filter by status
-    if (filters.status !== "all") {
-      results = results.filter(
-        (complaint) => complaint.status === filters.status
-      );
+    if (filters.province !== "all") {
+      results = results.filter(complaint => complaint.citizenProvince === filters.province);
     }
 
-    // Filter by category
-    if (filters.category !== "all") {
-      results = results.filter(
-        (complaint) => complaint.category === filters.category
-      );
-    }
-
-    // Filter by district
     if (filters.district !== "all") {
-      results = results.filter(
-        (complaint) => complaint.district === filters.district
-      );
+      results = results.filter(complaint => complaint.citizenDistrict === filters.district);
     }
 
-    // Apply tab filter
-    if (activeTab !== "all") {
-      results = results.filter((complaint) => complaint.status === activeTab);
+    if (filters.status !== "all") {
+      results = results.filter(complaint => complaint.status === filters.status);
+    }
+
+    if (filters.category !== "all") {
+      results = results.filter(complaint => complaint.complaintType === filters.category);
     }
 
     setFilteredComplaints(results);
 
-    // Calculate stats for charts
-    const statusData: Record<string, number> = {};
-    const categoryData: Record<string, number> = {};
-    const districtStats: Record<string, number> = {};
+    // Calculate statistics
+    const statusData: Record<Status, number> = {
+      "Submitted": 0,
+      "Under Review": 0,
+      "In Progress": 0,
+      "Resolved": 0,
+      "Rejected": 0
+    };
 
-    complaints.forEach((complaint) => {
+    const provinceData: Record<string, ProvinceStats> = {};
+
+    results.forEach((complaint) => {
       // Count by status
       statusData[complaint.status] = (statusData[complaint.status] || 0) + 1;
       
-      // Count by category
-      categoryData[complaint.category] = (categoryData[complaint.category] || 0) + 1;
-      
-      // Count by district
-      districtStats[complaint.district] = (districtStats[complaint.district] || 0) + 1;
+      // Count by province and district
+      if (!provinceData[complaint.citizenProvince]) {
+        provinceData[complaint.citizenProvince] = {
+          total: 0,
+          byStatus: {
+            "Submitted": 0,
+            "Under Review": 0,
+            "In Progress": 0,
+            "Resolved": 0,
+            "Rejected": 0
+          },
+          districts: {}
+        };
+      }
+
+      if (!provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict]) {
+        provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict] = {
+          total: 0,
+          byStatus: {
+            "Submitted": 0,
+            "Under Review": 0,
+            "In Progress": 0,
+            "Resolved": 0,
+            "Rejected": 0
+          }
+        };
+      }
+
+      provinceData[complaint.citizenProvince].total++;
+      provinceData[complaint.citizenProvince].byStatus[complaint.status]++;
+      provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict].total++;
+      provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict].byStatus[complaint.status]++;
     });
 
     setStatusCounts(statusData);
+    setProvinceStats(provinceData);
+
+    // Calculate category statistics
+    const categoryData: Record<string, number> = {};
+    results.forEach((complaint) => {
+      categoryData[complaint.complaintType] = (categoryData[complaint.complaintType] || 0) + 1;
+    });
     setCategoryCounts(categoryData);
-    setDistrictData(districtStats);
-  }, [complaints, filters, activeTab]);
+  }, [complaintsData, filters]);
+
+  // Fetch provinces on component mount
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setIsLoading(prev => ({ ...prev, provinces: true }));
+      try {
+        const response = await fetch(`${API_BASE_URL}/provinces`);
+        if (!response.ok) throw new Error('Failed to fetch provinces');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.provinces) {
+          setLocations(prev => ({ ...prev, provinces: data.provinces || [] }));
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load provinces. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(prev => ({ ...prev, provinces: false }));
+      }
+    };
+
+    fetchProvinces();
+  }, [toast]);
+
+  // Fetch districts when province changes
+  useEffect(() => {
+    const fetchDistricts = async () => {
+      if (!filters.province || filters.province === "all") {
+        setLocations(prev => ({ ...prev, districts: [] }));
+        return;
+      }
+      
+      setIsLoading(prev => ({ ...prev, districts: true }));
+      try {
+        const encodedProvince = encodeURIComponent(filters.province);
+        const response = await fetch(
+          `${API_BASE_URL}/province/${encodedProvince}/districts`
+        );
+        if (!response.ok) throw new Error('Failed to fetch districts');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.districts) {
+          setLocations(prev => ({ ...prev, districts: data.districts || [] }));
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load districts. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(prev => ({ ...prev, districts: false }));
+      }
+    };
+
+    fetchDistricts();
+  }, [filters.province, toast]);
+
+  // Update feedback statistics when data changes
+  useEffect(() => {
+    if (!feedbackData) return;
+
+    const stats = {
+      total: feedbackData.length,
+      byProvince: {} as Record<string, number>,
+      byDistrict: {} as Record<string, number>
+    };
+
+    feedbackData.forEach((item: Feedback) => {
+      // Count by province
+      stats.byProvince[item.citizenProvince] = (stats.byProvince[item.citizenProvince] || 0) + 1;
+      
+      // Count by district
+      stats.byDistrict[item.citizenDistrict] = (stats.byDistrict[item.citizenDistrict] || 0) + 1;
+    });
+
+    setFeedbackStats(stats);
+  }, [feedbackData]);
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      }).format(date);
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  };
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -154,17 +381,17 @@ const Admin = () => {
     setIsDialogOpen(true);
   };
 
-  const handleUpdateStatus = () => {
+  const handleUpdateStatus = async () => {
     if (!selectedComplaint) return;
     
     setIsSubmitting(true);
     
     try {
-      updateComplaintStatus(selectedComplaint.id, newStatus, responseText);
+      await updateComplaintStatus(selectedComplaint._id, newStatus);
       
       toast({
         title: "Status Updated",
-        description: `Complaint ${selectedComplaint.id} has been updated to ${newStatus}`,
+        description: `Complaint ${selectedComplaint.trackingCode} has been updated to ${newStatus}`,
       });
       
       setIsDialogOpen(false);
@@ -179,20 +406,13 @@ const Admin = () => {
     }
   };
 
-  const getStatusCount = (status: string) => {
-    return complaints.filter(complaint => complaint.status === status).length;
-  };
+  if (isLoadingComplaints || isLoadingFeedback) {
+    return <div>Loading...</div>;
+  }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-    }).format(date);
-  };
+  if (complaintsError || feedbackError) {
+    return <div>Error loading data</div>;
+  }
 
   // Convert status data for chart
   const statusChartData = Object.entries(statusCounts).map(([status, count]) => ({
@@ -206,8 +426,11 @@ const Admin = () => {
   }));
 
   // Extract unique categories and districts for filters
-  const categories = Array.from(new Set(complaints.map(c => c.category)));
-  const districts = Array.from(new Set(complaints.map(c => c.district)));
+  const categories = Array.from(new Set(complaintsData.map(c => c.complaintType)));
+  const districts = Array.from(new Set(complaintsData.map(c => c.citizenDistrict)));
+
+  // Get unique provinces
+  const provinces = Array.from(new Set(complaintsData?.map(c => c.citizenProvince) || []));
 
   const switchTab = (tab: string) => {
     setCurrentView(tab);
@@ -223,8 +446,8 @@ const Admin = () => {
         </div>
       </div>
 
-      {/* Stats cards designed like the reference image */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex items-center">
             <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mr-4">
@@ -234,7 +457,7 @@ const Admin = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Total Complaints</p>
-              <p className="text-3xl font-bold">{complaints.length}</p>
+              <p className="text-3xl font-bold">{filteredComplaints.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -248,7 +471,9 @@ const Admin = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Pending</p>
-              <p className="text-3xl font-bold">{getStatusCount("Submitted") + getStatusCount("Under Review")}</p>
+              <p className="text-3xl font-bold">
+                {getStatusCount("Submitted") + getStatusCount("Under Review")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -278,6 +503,20 @@ const Admin = () => {
             <div>
               <p className="text-sm font-medium text-gray-500">Resolved</p>
               <p className="text-3xl font-bold">{getStatusCount("Resolved")}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm">
+          <CardContent className="p-4 flex items-center">
+            <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Total Feedback</p>
+              <p className="text-3xl font-bold">{feedbackData?.length || 0}</p>
             </div>
           </CardContent>
         </Card>
@@ -312,21 +551,21 @@ const Admin = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {complaints.length === 0 ? (
+                    {complaintsData.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-4 text-gray-500">
                           No complaints found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      complaints.slice(0, 5).map((complaint) => (
-                        <TableRow key={complaint.id}>
-                          <TableCell className="font-medium">{complaint.id}</TableCell>
-                          <TableCell>{complaint.category}</TableCell>
+                      complaintsData.slice(0, 5).map((complaint) => (
+                        <TableRow key={complaint._id}>
+                          <TableCell className="font-medium">{complaint.trackingCode}</TableCell>
+                          <TableCell>{complaint.complaintType}</TableCell>
                           <TableCell>
-                            <StatusBadge status={complaint.status} />
+                            <StatusBadge status={complaint.status as Status} />
                           </TableCell>
-                          <TableCell>{formatDate(complaint.createdAt)}</TableCell>
+                          <TableCell>{formatDate(complaint.postingDate)}</TableCell>
                           <TableCell>
                             <Button
                               variant="outline"
@@ -362,13 +601,26 @@ const Admin = () => {
                           name: category,
                           value: count,
                         }))}
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
                       >
-                        <XAxis type="number" />
-                        <YAxis dataKey="name" type="category" width={100} />
-                        <RechartsTooltip />
-                        <Bar dataKey="value" fill="#22c55e" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45} 
+                          textAnchor="end"
+                          height={100}
+                          interval={0}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis />
+                        <RechartsTooltip 
+                          formatter={(value: number) => [`${value} complaints`, 'Count']}
+                          labelFormatter={(label) => `Category: ${label}`}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          fill="#22c55e"
+                          radius={[4, 4, 0, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartContainer>
@@ -428,28 +680,31 @@ const Admin = () => {
               </Tabs>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <Input
-                      placeholder="Search by ID or name"
+                      placeholder="Search"
                       value={filters.searchTerm}
                       onChange={handleSearchChange}
                     />
                   </div>
                   <Select
-                    value={filters.category}
-                    onValueChange={(value) => handleFilterChange("category", value)}
+                    value={filters.province}
+                    onValueChange={(value) => {
+                      setFilters(prev => ({ ...prev, province: value, district: "all" }));
+                    }}
+                    disabled={isLoading.provinces}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Filter by category" />
+                      <SelectValue placeholder="Select Province" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
+                      <SelectItem value="all">All Provinces</SelectItem>
+                      {locations.provinces.map((province) => (
+                        <SelectItem key={province} value={province}>
+                          {province}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -457,17 +712,34 @@ const Admin = () => {
                   <Select
                     value={filters.district}
                     onValueChange={(value) => handleFilterChange("district", value)}
+                    disabled={filters.province === "all" || isLoading.districts}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Filter by district" />
+                      <SelectValue placeholder="Select District" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Districts</SelectItem>
-                      {districts.map((district) => (
+                      {locations.districts.map((district) => (
                         <SelectItem key={district} value={district}>
                           {district}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={filters.status}
+                    onValueChange={(value) => handleFilterChange("status", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="Submitted">Submitted</SelectItem>
+                      <SelectItem value="Under Review">Under Review</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -477,30 +749,39 @@ const Admin = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Submitted</TableHead>
+                        <TableHead>Tracking Code</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Submitted</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Contact</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredComplaints.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-4 text-gray-500">
+                          <TableCell colSpan={7} className="text-center py-4 text-gray-500">
                             No complaints found matching your filters
                           </TableCell>
                         </TableRow>
                       ) : (
                         filteredComplaints.map((complaint) => (
-                          <TableRow key={complaint.id}>
-                            <TableCell>{complaint.id}</TableCell>
-                            <TableCell>{complaint.fullName}</TableCell>
-                            <TableCell>{complaint.category}</TableCell>
-                            <TableCell>{formatDate(complaint.createdAt)}</TableCell>
+                          <TableRow key={complaint._id}>
+                            <TableCell>{complaint.trackingCode}</TableCell>
+                            <TableCell>{complaint.complaintType}</TableCell>
                             <TableCell>
                               <StatusBadge status={complaint.status} />
+                            </TableCell>
+                            <TableCell>{formatDate(complaint.postingDate)}</TableCell>
+                            <TableCell>
+                              {complaint.citizenDistrict}, {complaint.citizenSector}
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div>{complaint.citizenEmail}</div>
+                                <div className="text-gray-500">{complaint.citizenPhone}</div>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Button
@@ -517,6 +798,94 @@ const Admin = () => {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Complaint Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Total Complaints</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-3xl font-bold">{filteredComplaints.length}</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">By Status</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {Object.entries(statusCounts).map(([status, count]) => (
+                          <div key={status} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{status}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">By Province</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {Object.entries(provinceStats).map(([province, stats]) => (
+                          <div key={province} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{province}</span>
+                            <span className="font-medium">{stats.total}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">By District</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {Object.entries(districtStats).map(([district, stats]) => (
+                          <div key={district} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{district}</span>
+                            <span className="font-medium">{stats.total}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Detailed Province Statistics */}
+                {filters.province !== "all" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Detailed Statistics for {filters.province}</CardTitle>
+                      <CardDescription>Complaints by District and Status</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {Object.entries(provinceStats[filters.province]?.districts || {}).map(([district, stats]) => (
+                          <div key={district} className="border-b pb-4">
+                            <h3 className="font-semibold text-lg">{district}</h3>
+                            <p className="text-sm text-gray-500">Total: {stats.total}</p>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
+                              {Object.entries(stats.byStatus).map(([status, count]) => (
+                                <div key={status} className="bg-gray-50 p-2 rounded">
+                                  <p className="text-sm font-medium text-gray-600">{status}</p>
+                                  <p className="text-lg font-bold">{count}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -530,25 +899,89 @@ const Admin = () => {
               <CardDescription>Review feedback submitted by citizens</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {feedbackItems.map((item) => (
-                  <Card key={item.id} className="bg-gray-50">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <p className="text-gray-800">{item.text}</p>
-                          <p className="text-xs text-gray-500">
-                            Submitted on {formatDate(item.date)}
-                          </p>
-                        </div>
-                        <Button variant="outline" size="sm">Mark as Read</Button>
+              <div className="space-y-6">
+                {/* Feedback Table */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Feedback</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {feedbackData?.map((item: Feedback) => (
+                        <TableRow key={item._id}>
+                          <TableCell className="max-w-md">
+                            <p className="truncate">{item.feedback}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{item.citizenProvince}</div>
+                              <div className="text-gray-500">
+                                {item.citizenDistrict}, {item.citizenSector}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>{item.citizenEmail}</div>
+                              <div className="text-gray-500">{item.citizenPhone}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm">View Details</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Feedback Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Total Feedback</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-3xl font-bold">{feedbackStats.total}</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">By Province</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {Object.entries(feedbackStats.byProvince).map(([province, count]) => (
+                          <div key={province} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{province}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-                
-                <div className="flex justify-center">
-                  <Button variant="outline">Load More Feedback</Button>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">By District</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {Object.entries(feedbackStats.byDistrict).map(([district, count]) => (
+                          <div key={district} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{district}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </CardContent>
@@ -562,46 +995,46 @@ const Admin = () => {
           {selectedComplaint && (
             <>
               <DialogHeader>
-                <DialogTitle>Complaint Details - {selectedComplaint.id}</DialogTitle>
+                <DialogTitle>Complaint Details - {selectedComplaint.trackingCode}</DialogTitle>
                 <DialogDescription>
-                  Submitted on {formatDate(selectedComplaint.createdAt)}
+                  Submitted on {formatDate(selectedComplaint.postingDate)}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                 <div>
                   <Label className="text-gray-500">Name</Label>
-                  <p className="font-medium">{selectedComplaint.fullName}</p>
+                  <p className="font-medium">{selectedComplaint.complaint}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">Contact</Label>
-                  <p className="font-medium">{selectedComplaint.phoneNumber}</p>
+                  <p className="font-medium">{selectedComplaint.citizenPhone}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">ID/Email</Label>
-                  <p className="font-medium">{selectedComplaint.nationalIdOrEmail}</p>
+                  <p className="font-medium">{selectedComplaint.citizenEmail}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">Location</Label>
-                  <p className="font-medium">{selectedComplaint.district}, {selectedComplaint.sector}</p>
+                  <p className="font-medium">{selectedComplaint.citizenDistrict}, {selectedComplaint.citizenSector}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">Service Type</Label>
-                  <p className="font-medium">{selectedComplaint.serviceType}</p>
+                  <p className="font-medium">{selectedComplaint.complaintType}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">Category</Label>
-                  <p className="font-medium">{selectedComplaint.category}</p>
+                  <p className="font-medium">{selectedComplaint.complaintType}</p>
                 </div>
                 <div className="md:col-span-2">
                   <Label className="text-gray-500">Description</Label>
-                  <p className="font-medium">{selectedComplaint.description}</p>
+                  <p className="font-medium">{selectedComplaint.complaint}</p>
                 </div>
                 
                 <div className="md:col-span-2 border-t pt-4">
                   <Label htmlFor="status">Update Status</Label>
                   <Select 
                     value={newStatus} 
-                    onValueChange={(value: Complaint["status"]) => setNewStatus(value)}
+                    onValueChange={(value: Status) => setNewStatus(value)}
                   >
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select status" />
