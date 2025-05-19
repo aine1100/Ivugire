@@ -23,6 +23,9 @@ import { ChartContainer } from "@/components/ui/chart";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getAllComplaints, getAllFeedback, updateComplaintStatus } from "@/api/adminApi";
+import { MessageSquare } from "lucide-react";
+import axios from "axios";
+import { queryClient } from "../lib/queryClient";
 
 const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
 
@@ -52,9 +55,10 @@ interface Complaint {
   citizenPhone: string;
   trackingCode: string;
   status: Status;
+  response?: string;
+  adminResponder?: string;
   responseDate?: string;
   postingDate: string;
-  __v: number;
 }
 
 interface Feedback {
@@ -77,6 +81,14 @@ interface ProvinceStats {
     total: number;
     byStatus: Record<Status, number>;
   }>;
+}
+
+interface ComplaintStatistics {
+  total: number;
+  byStatus: Record<string, number>;
+  byProvince: Record<string, number>;
+  byDistrict: Record<string, number>;
+  byDistrictAndStatus: Record<string, Record<string, number>>;
 }
 
 const Admin = () => {
@@ -135,6 +147,9 @@ const Admin = () => {
     byDistrict: {}
   });
 
+  const [statistics, setStatistics] = useState<ComplaintStatistics | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+
   // Add getStatusCount function
   const getStatusCount = (status: Status) => {
     return statusCounts[status] || 0;
@@ -154,6 +169,19 @@ const Admin = () => {
   const { data: feedbackData, isLoading: isLoadingFeedback, error: feedbackError } = useQuery({
     queryKey: ['feedback'],
     queryFn: getAllFeedback
+  });
+
+  // Fetch statistics
+  const { data: statsData } = useQuery<ComplaintStatistics>({
+    queryKey: ['complaintStatistics'],
+    queryFn: async () => {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/complaint/statistics`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      return response.data;
+    }
   });
 
   // Get the current tab from URL
@@ -331,16 +359,24 @@ const Admin = () => {
       byDistrict: {} as Record<string, number>
     };
 
-    feedbackData.forEach((item: Feedback) => {
-      // Count by province
-      stats.byProvince[item.citizenProvince] = (stats.byProvince[item.citizenProvince] || 0) + 1;
-      
-      // Count by district
-      stats.byDistrict[item.citizenDistrict] = (stats.byDistrict[item.citizenDistrict] || 0) + 1;
+    feedbackData.forEach((item) => {
+      if (item.citizenProvince) {
+        stats.byProvince[item.citizenProvince] = (stats.byProvince[item.citizenProvince] || 0) + 1;
+      }
+      if (item.citizenDistrict) {
+        stats.byDistrict[item.citizenDistrict] = (stats.byDistrict[item.citizenDistrict] || 0) + 1;
+      }
     });
 
     setFeedbackStats(stats);
   }, [feedbackData]);
+
+  // Update useEffect to handle stats data
+  useEffect(() => {
+    if (statsData) {
+      setStatistics(statsData);
+    }
+  }, [statsData]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -387,18 +423,50 @@ const Admin = () => {
     setIsSubmitting(true);
     
     try {
-      await updateComplaintStatus(selectedComplaint._id, newStatus);
+      const adminResponder = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).username : 'Admin';
+      const token = localStorage.getItem('token');
+      
+      console.log('Sending update request:', {
+        url: `${import.meta.env.VITE_BACKEND_URL}/api/complaints/update/${selectedComplaint._id}`,
+        data: {
+          status: newStatus,
+          response: responseText,
+          adminResponder
+        }
+      });
+
+      const response = await axios.put(
+        `${import.meta.env.VITE_BACKEND_URL}/api/complaints/update/${selectedComplaint._id}`,
+        {
+          status: newStatus,
+          response: responseText,
+          adminResponder
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('Update response:', response.data);
+
+      // Refetch complaints and statistics
+      await queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      await queryClient.invalidateQueries({ queryKey: ['complaintStatistics'] });
       
       toast({
-        title: "Status Updated",
-        description: `Complaint ${selectedComplaint.trackingCode} has been updated to ${newStatus}`,
+        title: "Success",
+        description: "Complaint updated successfully",
       });
       
       setIsDialogOpen(false);
     } catch (error) {
+      console.error('Error updating complaint:', error);
       toast({
-        title: "Update Error",
-        description: "Failed to update complaint status",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update complaint",
         variant: "destructive",
       });
     } finally {
@@ -436,6 +504,216 @@ const Admin = () => {
     setCurrentView(tab);
     navigate(`/admin/dashboard${tab !== 'dashboard' ? `?tab=${tab}` : ''}`);
   };
+
+  const renderComplaintsTab = () => (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <Input
+            placeholder="Search"
+            value={filters.searchTerm}
+            onChange={handleSearchChange}
+          />
+        </div>
+        <Select
+          value={filters.province}
+          onValueChange={(value) => {
+            setFilters(prev => ({ ...prev, province: value, district: "all" }));
+          }}
+          disabled={isLoading.provinces}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select Province" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Provinces</SelectItem>
+            {locations.provinces.map((province) => (
+              <SelectItem key={province} value={province}>
+                {province}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.district}
+          onValueChange={(value) => handleFilterChange("district", value)}
+          disabled={filters.province === "all" || isLoading.districts}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select District" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Districts</SelectItem>
+            {locations.districts.map((district) => (
+              <SelectItem key={district} value={district}>
+                {district}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.status}
+          onValueChange={(value) => handleFilterChange("status", value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="Submitted">Submitted</SelectItem>
+            <SelectItem value="Under Review">Under Review</SelectItem>
+            <SelectItem value="In Progress">In Progress</SelectItem>
+            <SelectItem value="Resolved">Resolved</SelectItem>
+            <SelectItem value="Rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Complaints Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tracking Code</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Submitted</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredComplaints.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-4 text-gray-500">
+                  No complaints found matching your filters
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredComplaints.map((complaint) => (
+                <TableRow key={complaint._id}>
+                  <TableCell>{complaint.trackingCode}</TableCell>
+                  <TableCell>{complaint.complaintType}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={complaint.status} />
+                  </TableCell>
+                  <TableCell>{formatDate(complaint.postingDate)}</TableCell>
+                  <TableCell>
+                    {complaint.citizenDistrict}, {complaint.citizenSector}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      <div>{complaint.citizenEmail}</div>
+                      <div className="text-gray-500">{complaint.citizenPhone}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewDetails(complaint)}
+                    >
+                      Manage
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Complaint Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Total Complaints</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{filteredComplaints.length}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">By Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.entries(statusCounts).map(([status, count]) => (
+                <div key={status} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{status}</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">By Province</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {Object.entries(provinceStats).map(([province, stats]) => (
+                <div key={province} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{province}</span>
+                  <span className="font-medium">{stats.total}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">By District</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {Object.entries(districtStats).map(([district, stats]) => (
+                <div key={district} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{district}</span>
+                  <span className="font-medium">{stats.total}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Province Statistics */}
+      {filters.province !== "all" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Detailed Statistics for {filters.province}</CardTitle>
+            <CardDescription>Complaints by District and Status</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {Object.entries(provinceStats[filters.province]?.districts || {}).map(([district, stats]) => (
+                <div key={district} className="border-b pb-4">
+                  <h3 className="font-semibold text-lg">{district}</h3>
+                  <p className="text-sm text-gray-500">Total: {stats.total}</p>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
+                    {Object.entries(stats.byStatus).map(([status, count]) => (
+                      <div key={status} className="bg-gray-50 p-2 rounded">
+                        <p className="text-sm font-medium text-gray-600">{status}</p>
+                        <p className="text-lg font-bold">{count}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -680,213 +958,7 @@ const Admin = () => {
               </Tabs>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <Input
-                      placeholder="Search"
-                      value={filters.searchTerm}
-                      onChange={handleSearchChange}
-                    />
-                  </div>
-                  <Select
-                    value={filters.province}
-                    onValueChange={(value) => {
-                      setFilters(prev => ({ ...prev, province: value, district: "all" }));
-                    }}
-                    disabled={isLoading.provinces}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Province" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Provinces</SelectItem>
-                      {locations.provinces.map((province) => (
-                        <SelectItem key={province} value={province}>
-                          {province}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={filters.district}
-                    onValueChange={(value) => handleFilterChange("district", value)}
-                    disabled={filters.province === "all" || isLoading.districts}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select District" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Districts</SelectItem>
-                      {locations.districts.map((district) => (
-                        <SelectItem key={district} value={district}>
-                          {district}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={filters.status}
-                    onValueChange={(value) => handleFilterChange("status", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="Submitted">Submitted</SelectItem>
-                      <SelectItem value="Under Review">Under Review</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
-                      <SelectItem value="Resolved">Resolved</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Complaints Table */}
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Tracking Code</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Submitted</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredComplaints.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-4 text-gray-500">
-                            No complaints found matching your filters
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredComplaints.map((complaint) => (
-                          <TableRow key={complaint._id}>
-                            <TableCell>{complaint.trackingCode}</TableCell>
-                            <TableCell>{complaint.complaintType}</TableCell>
-                            <TableCell>
-                              <StatusBadge status={complaint.status} />
-                            </TableCell>
-                            <TableCell>{formatDate(complaint.postingDate)}</TableCell>
-                            <TableCell>
-                              {complaint.citizenDistrict}, {complaint.citizenSector}
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <div>{complaint.citizenEmail}</div>
-                                <div className="text-gray-500">{complaint.citizenPhone}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleViewDetails(complaint)}
-                              >
-                                Manage
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Complaint Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Total Complaints</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-3xl font-bold">{filteredComplaints.length}</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">By Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {Object.entries(statusCounts).map(([status, count]) => (
-                          <div key={status} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{status}</span>
-                            <span className="font-medium">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">By Province</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {Object.entries(provinceStats).map(([province, stats]) => (
-                          <div key={province} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{province}</span>
-                            <span className="font-medium">{stats.total}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">By District</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {Object.entries(districtStats).map(([district, stats]) => (
-                          <div key={district} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{district}</span>
-                            <span className="font-medium">{stats.total}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Detailed Province Statistics */}
-                {filters.province !== "all" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Detailed Statistics for {filters.province}</CardTitle>
-                      <CardDescription>Complaints by District and Status</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-6">
-                        {Object.entries(provinceStats[filters.province]?.districts || {}).map(([district, stats]) => (
-                          <div key={district} className="border-b pb-4">
-                            <h3 className="font-semibold text-lg">{district}</h3>
-                            <p className="text-sm text-gray-500">Total: {stats.total}</p>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
-                              {Object.entries(stats.byStatus).map(([status, count]) => (
-                                <div key={status} className="bg-gray-50 p-2 rounded">
-                                  <p className="text-sm font-medium text-gray-600">{status}</p>
-                                  <p className="text-lg font-bold">{count}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+              {renderComplaintsTab()}
             </CardContent>
           </Card>
         </TabsContent>

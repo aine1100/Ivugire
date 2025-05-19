@@ -1,30 +1,38 @@
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-type Status = "Pending" | "In Progress" | "Resolved" | "Rejected";
+export type Status = "Submitted" | "Under Review" | "In Progress" | "Resolved" | "Rejected";
 
 interface StatusBadgeProps {
   status: Status;
 }
 
-const statusColors: Record<Status, string> = {
-  "Pending": "bg-yellow-100 text-yellow-800",
-  "In Progress": "bg-blue-100 text-blue-800",
-  "Resolved": "bg-green-100 text-green-800",
-  "Rejected": "bg-red-100 text-red-800"
-};
-
-const statusLabels: Record<Status, string> = {
-  "Pending": "Gitegereje",
-  "In Progress": "Gikora",
-  "Resolved": "Gisubijwe",
-  "Rejected": "Gahakanwe"
-};
-
 const StatusBadge = ({ status }: StatusBadgeProps) => {
+  const getStatusColor = (status: Status) => {
+    switch (status) {
+      case "Submitted":
+        return "bg-blue-100 text-blue-800";
+      case "Under Review":
+        return "bg-yellow-100 text-yellow-800";
+      case "In Progress":
+        return "bg-purple-100 text-purple-800";
+      case "Resolved":
+        return "bg-green-100 text-green-800";
+      case "Rejected":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
-    <Badge className={`${statusColors[status]} font-medium`}>
-      {statusLabels[status]}
-    </Badge>
+    <span
+      className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        getStatusColor(status)
+      )}
+    >
+      {status}
+    </span>
   );
 };
 
