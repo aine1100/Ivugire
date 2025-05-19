@@ -54,36 +54,26 @@ export const getAllComplaints = async (): Promise<Complaint[]> => {
   }
 };
 
-export const updateComplaintStatus = async (id: string, status: string): Promise<void> => {
+export const updateComplaint = async (
+  id: string, 
+  data: { 
+    status: string; 
+    response: string;
+    adminResponder: string;
+  }
+): Promise<void> => {
   try {
     const response = await fetch(`${API_URL}/api/complaints/update/${id}`, {
       method: 'PUT',
       headers: getAuthHeader(),
-      body: JSON.stringify({ status })
+      body: JSON.stringify(data)
     });
 
     if (!response.ok) {
-      throw new Error('Failed to update complaint status');
+      throw new Error('Failed to update complaint');
     }
   } catch (error) {
-    console.error('Error updating complaint status:', error);
-    throw error;
-  }
-};
-
-export const updateComplaintResponse = async (id: string, responseText: string): Promise<void> => {
-  try {
-    const response = await fetch(`${API_URL}/api/complaints/update/response/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeader(),
-      body: JSON.stringify({ response: responseText })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update complaint response');
-    }
-  } catch (error) {
-    console.error('Error updating complaint response:', error);
+    console.error('Error updating complaint:', error);
     throw error;
   }
 };

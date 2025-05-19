@@ -21,6 +21,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { createComplaint } from "@/api/complaintApi";
+import { useLanguage } from "@/context/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
 
@@ -108,6 +110,7 @@ const complaintCategories = {
 const SubmitComplaint = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -407,6 +410,11 @@ const SubmitComplaint = () => {
 
   return (
     <div className="max-w-3xl mx-auto py-4 animate-fade-in">
+      {/* Language Switcher */}
+      <div className="fixed top-4 right-4 z-50">
+        <LanguageSwitcher />
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Submit a Complaint</CardTitle>

@@ -76,3 +76,4 @@ export async function trackComplaintById({trackingCode}:{trackingCode:string}){
     throw error;
   }
 }
+

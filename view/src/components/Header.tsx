@@ -1,15 +1,15 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Globe } from "lucide-react";
+import { useLanguage } from "@/context/LanguageContext";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [language, setLanguage] = useState("kinyarwanda"); // Default to Kinyarwanda
+  const { language, setLanguage, t } = useLanguage();
 
   const toggleLanguage = () => {
-    setLanguage(language === "kinyarwanda" ? "english" : "kinyarwanda");
+    setLanguage(language === 'rw' ? 'en' : 'rw');
   };
 
   return (
@@ -18,9 +18,8 @@ const Header = () => {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
-              <div className="h-24 w-24  rounded-full flex items-center justify-center">
-              <img src="ivugire.svg" alt="Logo"
-                      className="object-cover h-full w-full"/>
+              <div className="h-24 w-24 rounded-full flex items-center justify-center">
+                <img src="ivugire.svg" alt="Logo" className="object-cover h-full w-full"/>
               </div>
               <span className="font-bold text-xl text-gray-800">Ivugire</span>
             </Link>
@@ -29,17 +28,17 @@ const Header = () => {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/" className="text-gray-700 hover:text-green-600 font-medium">
-              {language === "kinyarwanda" ? "Ahabanza" : "Home"}
+              {t('home')}
             </Link>
             <Link to="/submit" className="text-gray-700 hover:text-green-600 font-medium">
-              {language === "kinyarwanda" ? "Tanga Ikibazo" : "Submit Complaint"}
+              {t('submit')}
             </Link>
             <Link to="/track" className="text-gray-700 hover:text-green-600 font-medium">
-              {language === "kinyarwanda" ? "Kureba Ikibazo" : "Track Complaint"}
+              {t('track')}
             </Link>
             <Link to="/admin">
               <Button variant="outline" className="shadow-sm border-gray-200">
-                {language === "kinyarwanda" ? "Kwinjira" : "Staff Login"}
+                {t('login')}
               </Button>
             </Link>
             <Button 
@@ -48,7 +47,7 @@ const Header = () => {
               className="flex items-center gap-2 shadow-sm border-gray-200"
             >
               <Globe className="h-4 w-4" />
-              {language === "kinyarwanda" ? "English" : "Kinyarwanda"}
+              {language === 'rw' ? 'English' : 'Kinyarwanda'}
             </Button>
           </nav>
 
@@ -81,28 +80,28 @@ const Header = () => {
                 className="text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-md"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                {language === "kinyarwanda" ? "Ahabanza" : "Home"}
+                {t('home')}
               </Link>
               <Link
                 to="/submit"
                 className="text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-md"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                {language === "kinyarwanda" ? "Tanga Ikibazo" : "Submit Complaint"}
+                {t('submit')}
               </Link>
               <Link
                 to="/track"
                 className="text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-md"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                {language === "kinyarwanda" ? "Kureba Ikibazo" : "Track Complaint"}
+                {t('track')}
               </Link>
               <Link
                 to="/admin"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <Button variant="outline" className="w-full justify-start shadow-sm border-gray-200">
-                  {language === "kinyarwanda" ? "Kwinjira" : "Staff Login"}
+                  {t('login')}
                 </Button>
               </Link>
               <Button 
@@ -114,7 +113,7 @@ const Header = () => {
                 }}
               >
                 <Globe className="h-4 w-4" />
-                {language === "kinyarwanda" ? "English" : "Kinyarwanda"}
+                {language === 'rw' ? 'English' : 'Kinyarwanda'}
               </Button>
             </div>
           </div>

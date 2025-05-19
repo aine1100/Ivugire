@@ -1,160 +1,160 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import StatusBadge from "@/components/StatusBadge";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { trackComplaintById } from "@/api/complaintApi";
+import {trackComplaintById} from "@/api/complaintApi";
+import StatusBadge, { Status } from "@/components/StatusBadge";
+import { useLanguage } from "@/context/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 interface Complaint {
-  id: string;
+  _id: string;
   trackingCode: string;
-  status: "Pending" | "In Progress" | "Resolved" | "Rejected";
-  postingDate: string;
-  complaint: string;
+  status: Status;
   complaintType: string;
-  citizenCountryId: string;
+  complaint: string;
   citizenProvince: string;
   citizenDistrict: string;
-  citizenSector: string;
+  citizenSector?: string;
   citizenCell: string;
   citizenVillage: string;
   citizenEmail?: string;
   citizenPhone?: string;
+  citizenCountryId: string;
   response?: string;
   adminResponder?: string;
   responseDate?: string;
+  postingDate: string;
+  __v: number;
 }
 
 const TrackComplaint = () => {
-  const [trackingId, setTrackingId] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const { t } = useLanguage();
+  const [trackingCode, setTrackingCode] = useState("");
   const [complaint, setComplaint] = useState<Complaint | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trackingId.trim()) {
-      toast.error("Nyamuneka andika nimero y'ikibazo cyawe");
+    if (!trackingCode.trim()) {
+      toast.error(t('errors.trackingCode'));
       return;
     }
-    
-    setIsLoading(true);
-    
+    setLoading(true);
+    setError("");
     try {
-      const data = await trackComplaintById({ trackingCode: trackingId });
+      const data = await trackComplaintById({ trackingCode });
+      console.log('API Response:', data); // Debug log
       setComplaint(data);
-      toast.success("Ikibazo cyawe cyabonetse!");
     } catch (error) {
-      setComplaint(null);
-      toast.error("Ikibazo gifite iyi nimero ntigihari. Nyamuneka suzuma nimero y'ikibazo cyawe.");
+      console.error("Error tracking complaint:", error);
+      setError(t('errors.tracking'));
+      toast.error(t('errors.tracking'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-  
+
   return (
-    <div className="max-w-2xl mx-auto animate-fade-in">
-      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-        Kureba Aho Ikibazo Kigeze
+    <div className="max-w-3xl mx-auto py-12 px-4">
+      {/* Language Switcher */}
+      <div className="fixed top-4 right-4 z-50">
+        <LanguageSwitcher />
+      </div>
+
+      <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">
+        {t('track.title')}
       </h1>
-      
-      <Card className="mb-8 shadow-lg border-none">
-        <CardHeader>
-          <CardTitle>Shaka Ikibazo</CardTitle>
-          <CardDescription>
-            Andika nimero y'ikibazo cyawe uzahabwa amakuru kuri cyo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleTrack} className="space-y-4">
-            <div>
-              <label htmlFor="trackingId" className="block text-sm font-medium mb-1 text-gray-700">
-                Nimero y'Ikibazo
-              </label>
-              <Input
-                id="trackingId"
-                placeholder="Andika nimero y'ikibazo cyawe"
-                value={trackingId}
-                onChange={(e) => setTrackingId(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full bg-green-500 hover:bg-green-600"
-              disabled={!trackingId || isLoading}
+      <p className="text-center text-gray-600 mb-8">
+        {t('track.subtitle')}
+      </p>
+      <form onSubmit={handleTrack} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="trackingCode">{t('track.code')}</Label>
+          <div className="flex gap-4">
+            <Input
+              id="trackingCode"
+              value={trackingCode}
+              onChange={(e) => setTrackingCode(e.target.value)}
+              placeholder={t('track.codePlaceholder')}
+              required
+            />
+            <Button
+              type="submit"
+              className="bg-green-500 hover:bg-green-600"
+              disabled={loading}
             >
-              {isLoading ? "Turitegereje..." : "Reba Ikibazo"}
+              {loading ? t('track.loading') : t('track.button')}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
-      
+          </div>
+        </div>
+      </form>
+
+      {error && (
+        <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-lg">
+          {error}
+        </div>
+      )}
+
       {complaint && (
-        <Card className="border-none shadow-lg">
-          <CardHeader className="border-b pb-4">
-            <div className="flex justify-between items-center">
-              <CardTitle>Amakuru y'ikibazo #{complaint.trackingCode}</CardTitle>
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>{t('track.complaintDetails')}</span>
               <StatusBadge status={complaint.status} />
-            </div>
-            <CardDescription>
-              Cyashyizweho: {new Date(complaint.postingDate).toLocaleDateString()}
-            </CardDescription>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4">
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Ubwoko bw'ikibazo</h3>
-                  <p className="mt-1 font-medium">{complaint.complaintType}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Akarere</h3>
-                  <p className="mt-1 font-medium">{complaint.citizenDistrict}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Umurenge</h3>
-                  <p className="mt-1 font-medium">{complaint.citizenSector}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Umudugudu</h3>
-                  <p className="mt-1 font-medium">{complaint.citizenVillage}</p>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Inshamake y'ikibazo</h3>
-                <p className="p-3 bg-gray-50 rounded-md">{complaint.complaint}</p>
-              </div>
-              
-              {complaint.response && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Igisubizo</h3>
-                  <p className="p-3 bg-green-50 rounded-md border border-green-100">
-                    {complaint.response}
-                    {complaint.adminResponder && (
-                      <span className="block text-sm text-gray-500 mt-2">
-                        Byatanzwe na: {complaint.adminResponder}
-                        {complaint.responseDate && (
-                          <span className="block">
-                            Kuwa: {new Date(complaint.responseDate).toLocaleDateString()}
-                          </span>
-                        )}
-                      </span>
-                    )}
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="font-medium text-gray-700">{t('track.type')}</h3>
+              <p className="text-gray-600">{complaint.complaintType}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">{t('track.description')}</h3>
+              <p className="text-gray-600">{complaint.complaint}</p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">{t('track.location')}</h3>
+              <p className="text-gray-600">
+                {complaint.citizenProvince}, {complaint.citizenDistrict}
+                {complaint.citizenSector && `, ${complaint.citizenSector}`}
+                {complaint.citizenCell && `, ${complaint.citizenCell}`}
+                {complaint.citizenVillage && `, ${complaint.citizenVillage}`}
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-700">{t('track.contact')}</h3>
+              <p className="text-gray-600">
+                {complaint.citizenEmail && `${t('track.email')}: ${complaint.citizenEmail}`}
+                {complaint.citizenPhone && `${t('track.phone')}: ${complaint.citizenPhone}`}
+              </p>
+            </div>
+            {complaint.response && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-medium text-gray-700 mb-2">{t('track.response')}</h3>
+                <p className="text-gray-600 mb-2">{complaint.response}</p>
+                {complaint.adminResponder && (
+                  <p className="text-sm text-gray-500">
+                    {t('track.respondedBy')}: {complaint.adminResponder}
                   </p>
-                </div>
-              )}
+                )}
+                {complaint.responseDate && (
+                  <p className="text-sm text-gray-500">
+                    {t('track.responseDate')}: {new Date(complaint.responseDate).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            )}
+            <div>
+              <h3 className="font-medium text-gray-700">{t('track.submitted')}</h3>
+              <p className="text-gray-600">
+                {new Date(complaint.postingDate).toLocaleDateString()}
+              </p>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between border-t pt-4">
-            <p className="text-sm text-gray-500">
-              Shyira nimero #{complaint.trackingCode} mu bubiko.
-            </p>
-          </CardFooter>
         </Card>
       )}
     </div>

@@ -7,8 +7,11 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import  {postFeedback} from "@/api/feedbackApi";
+import { postFeedback } from "@/api/feedbackApi";
+import { useLanguage } from "@/context/LanguageContext";
+
 const Index = () => {
+  const { t } = useLanguage();
   const [feedback, setFeedback] = useState("");
   const [citizenProvince, setCitizenProvince] = useState("");
   const [citizenDistrict, setCitizenDistrict] = useState("");
@@ -30,14 +33,14 @@ const Index = () => {
   const handleFeedbackSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
-    if (!feedback.trim()) newErrors.feedback = "Andika igitekerezo cyawe.";
-    if (!citizenProvince) newErrors.citizenProvince = "Hitamo intara.";
-    if (!citizenDistrict.trim()) newErrors.citizenDistrict = "Andika akarere.";
-    if (!citizenCell.trim()) newErrors.citizenCell = "Andika akagari.";
-    if (!citizenVillage.trim()) newErrors.citizenVillage = "Andika umudugudu.";
+    if (!feedback.trim()) newErrors.feedback = t('errors.feedbackRequired');
+    if (!citizenProvince) newErrors.citizenProvince = t('errors.provinceRequired');
+    if (!citizenDistrict.trim()) newErrors.citizenDistrict = t('errors.districtRequired');
+    if (!citizenCell.trim()) newErrors.citizenCell = t('errors.cellRequired');
+    if (!citizenVillage.trim()) newErrors.citizenVillage = t('errors.villageRequired');
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
-      toast.error("Nyamuneka wujuje ibisabwa.");
+      toast.error(t('errors.requiredFields'));
       return;
     }
     postFeedback({
@@ -57,8 +60,7 @@ const Index = () => {
     .catch((error) => {
       console.error("Error sending feedback:", error);
       toast.error("Habayeho ikosa mu kohereza ibitekerezo.");
-    })
-    // Submit logic here (API call)
+    });
    
     setFeedback("");
     setCitizenProvince("");
@@ -72,25 +74,25 @@ const Index = () => {
   };
 
   return (
-    <div className="space-y-16 animate-fade-in">
-      {/* Hero Section with full width */}
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
       <section className="relative -mx-4 -mt-6 w-screen py-24 px-4 md:px-8 bg-gradient-to-br from-green-600 to-green-400 overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQ0MCIgaGVpZ2h0PSI1MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48Y2lyY2xlIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9Ii4zIiBjeD0iNzU5IiBjeT0iMzAwIiByPSIyNTAiLz48Y2lyY2xlIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9Ii4zIiBjeD0iNzU5IiBjeT0iMzAwIiByPSIyMDAiLz48Y2lyY2xlIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9Ii4zIiBjeD0iNzU5IiBjeT0iMzAwIiByPSIxNTAiLz48L2c+PC9zdmc+')]"></div>
         <div className="max-w-7xl mx-auto">
           <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="space-y-6 text-white">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-                Citizen Engagement System
+                {t('hero.title')}
               </h1>
               <p className="text-lg md:text-xl text-white/80">
-                Ikoreshwa mu gutanga ibitekerezo n'ibibazo ku mirimo ya Leta mu Rwanda byoroshye kandi mu mucyo.
+                {t('hero.subtitle')}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button asChild size="lg" className="bg-white text-green-600 hover:bg-white/90 shadow-lg">
-                  <Link to="/submit">Tanga Ikibazo</Link>
+                  <Link to="/submit">{t('hero.submit')}</Link>
                 </Button>
-                <Button asChild variant="outline" size="lg" className="border-white text-green-600 bg-white ">
-                  <Link to="/track">Kureba Aho Ikibazo Kigeze</Link>
+                <Button asChild variant="outline" size="lg" className="border-white text-green-600 bg-white">
+                  <Link to="/track">{t('hero.track')}</Link>
                 </Button>
               </div>
             </div>
@@ -99,13 +101,12 @@ const Index = () => {
                 <div className="absolute transform -rotate-6 top-4 left-4 w-[500px] h-[540px] bg-white/20 rounded-3xl shadow-xl backdrop-blur-sm border border-white/30">
                   <div className="h-full w-full rounded-3xl overflow-hidden">
                     <img
-                      src="citizen.png"
+                      src="citizen.jpg"
                       alt="Mobile app view"
                       className="object-cover h-full w-full"
                     />
                   </div>
                 </div>
-                
               </div>
             </div>
           </div>
@@ -115,7 +116,7 @@ const Index = () => {
       {/* How It Works */}
       <section className="py-12 px-4">
         <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-gray-800">
-          Uko Bikorwa
+          {t('howItWorks.title')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-none shadow-lg hover:shadow-xl transition-all">
@@ -136,9 +137,9 @@ const Index = () => {
                   />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Tanga</h3>
+              <h3 className="text-xl font-semibold mb-2">{t('howItWorks.submit')}</h3>
               <p className="text-gray-600">
-                Uzuza ifishi y'ikibazo n'ibitekerezo byawe ku bijyanye na serivisi.
+                {t('howItWorks.submitDesc')}
               </p>
             </CardContent>
           </Card>
@@ -161,9 +162,9 @@ const Index = () => {
                   />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Kurikirana</h3>
+              <h3 className="text-xl font-semibold mb-2">{t('howItWorks.track')}</h3>
               <p className="text-gray-600">
-                Koresha nimero y'ikibazo cyawe kugira ngo ukurikirane aho kigeze.
+                {t('howItWorks.trackDesc')}
               </p>
             </CardContent>
           </Card>
@@ -186,19 +187,19 @@ const Index = () => {
                   />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Igisubizo</h3>
+              <h3 className="text-xl font-semibold mb-2">{t('howItWorks.response')}</h3>
               <p className="text-gray-600">
-                Kubona amakuru ku gikemuro cy'ikibazo cyawe ukoresheje iyi sisitemu.
+                {t('howItWorks.responseDesc')}
               </p>
             </CardContent>
           </Card>
         </div>
       </section>
 
-      {/* Complaint Categories with circular icons */}
+      {/* Complaint Categories */}
       <section className="py-12 bg-gray-50 rounded-3xl gap-8 px-6 items-center flex flex-col justify-center">
         <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-gray-800">
-          Amoko y'Ibibazo
+          {t('categories.title')}
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
           <div className="bg-white p-6 rounded-xl shadow-md text-center hover:shadow-lg transition-all">
@@ -218,7 +219,7 @@ const Index = () => {
                 />
               </svg>
             </div>
-            <h3 className="font-medium text-lg">Ibibazo Mu Burezi</h3>
+            <h3 className="font-medium text-lg">{t('categories.education')}</h3>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-md text-center hover:shadow-lg transition-all">
@@ -238,7 +239,7 @@ const Index = () => {
                 />
               </svg>
             </div>
-            <h3 className="font-medium text-lg">Ibibazo Mu Buvuzi</h3>
+            <h3 className="font-medium text-lg">{t('categories.healthcare')}</h3>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-md text-center hover:shadow-lg transition-all">
@@ -258,7 +259,7 @@ const Index = () => {
                 />
               </svg>
             </div>
-            <h3 className="font-medium text-lg">Ibibazo Mu Bucuruzi</h3>
+            <h3 className="font-medium text-lg">{t('categories.business')}</h3>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-md text-center hover:shadow-lg transition-all">
@@ -278,65 +279,62 @@ const Index = () => {
                 />
               </svg>
             </div>
-            <h3 className="font-medium text-lg">Ibibazo Mu Bikorwa Remezo</h3>
+            <h3 className="font-medium text-lg">{t('categories.infrastructure')}</h3>
           </div>
-          
         </div>
         
         <Button 
-               
-               className="bg-green-500 hover:bg-green-600 flex items-center justify-center"
-               size="lg"
-             >
-              Soma Ibindi
-             </Button>
-       
+          className="bg-green-500 hover:bg-green-600 flex items-center justify-center"
+          size="lg"
+        >
+          {t('readMore')}
+        </Button>
       </section>
 
       {/* Statistics Section */}
       <section className="py-12">
         <div className="text-center mb-12">
           <h2 className="text-2xl md:text-3xl font-bold mb-2 text-gray-800">
-            Byakunzwe n'Abaturage bo mu Rwanda
+            {t('stats.title')}
           </h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Abaturage benshi bakoresha iyi sisitemu yo gutanga ibitekerezo n'ibibazo byabo
+            {t('stats.subtitle')}
           </p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <div className="text-center">
             <div className="text-4xl font-bold text-green-500 mb-2">2,000,000+</div>
-            <p className="text-gray-600">Abakoresha sisitemu</p>
+            <p className="text-gray-600">{t('stats.users')}</p>
           </div>
           
           <div className="text-center">
             <div className="text-4xl font-bold text-green-500 mb-2">4.8/5</div>
-            <p className="text-gray-600">Amanota batanga</p>
+            <p className="text-gray-600">{t('stats.rating')}</p>
           </div>
           
           <div className="text-center">
             <div className="text-4xl font-bold text-green-500 mb-2">90%</div>
-            <p className="text-gray-600">Ibibazo byakemurwa</p>
+            <p className="text-gray-600">{t('stats.resolved')}</p>
           </div>
         </div>
       </section>
 
-      {/* Feedback Section - New */}
+      {/* Feedback Section */}
       <section className="py-12 bg-green-50 rounded-3xl px-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-gray-800">
-            Tubwire Ibitekerezo
+            {t('feedback.title')}
           </h2>
           <p className="text-center text-gray-600 mb-8">
-            Ibitekerezo byawe ni ingenzi mu guteza imbere serivisi zacu. Tubwire icyo utekereza.
+            {t('feedback.subtitle')}
           </p>
           <form onSubmit={handleFeedbackSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="feedback">Igitekerezo *</Label>
+              <Label htmlFor="feedback">{t('feedback.feedback')}</Label>
               <Textarea
                 id="feedback"
-                placeholder="Andika hano igitekerezo cyawe..."
+                placeholder={t('feedback.feedbackPlaceholder')}
                 className="min-h-[120px]"
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
@@ -346,14 +344,14 @@ const Index = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="citizenProvince">Intara *</Label>
+                <Label htmlFor="citizenProvince">{t('feedback.province')}</Label>
                 <Select
                   value={citizenProvince}
                   onValueChange={setCitizenProvince}
                   required
                 >
                   <SelectTrigger id="citizenProvince">
-                    <SelectValue placeholder="Hitamo intara" />
+                    <SelectValue placeholder={t('feedback.province')} />
                   </SelectTrigger>
                   <SelectContent>
                     {provinces.map((p) => (
@@ -364,64 +362,64 @@ const Index = () => {
                 {errors.citizenProvince && <p className="text-red-500 text-sm mt-1">{errors.citizenProvince}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenDistrict">Akarere *</Label>
+                <Label htmlFor="citizenDistrict">{t('feedback.district')}</Label>
                 <Input
                   id="citizenDistrict"
                   value={citizenDistrict}
                   onChange={e => setCitizenDistrict(e.target.value)}
-                  placeholder="Andika akarere"
+                  placeholder={t('feedback.district')}
                   required
                 />
                 {errors.citizenDistrict && <p className="text-red-500 text-sm mt-1">{errors.citizenDistrict}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenSector">Umurenge</Label>
+                <Label htmlFor="citizenSector">{t('feedback.sector')}</Label>
                 <Input
                   id="citizenSector"
                   value={citizenSector}
                   onChange={e => setCitizenSector(e.target.value)}
-                  placeholder="Andika umurenge (si ngombwa)"
+                  placeholder={t('feedback.sector')}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenCell">Akagari *</Label>
+                <Label htmlFor="citizenCell">{t('feedback.cell')}</Label>
                 <Input
                   id="citizenCell"
                   value={citizenCell}
                   onChange={e => setCitizenCell(e.target.value)}
-                  placeholder="Andika akagari"
+                  placeholder={t('feedback.cell')}
                   required
                 />
                 {errors.citizenCell && <p className="text-red-500 text-sm mt-1">{errors.citizenCell}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenVillage">Umudugudu *</Label>
+                <Label htmlFor="citizenVillage">{t('feedback.village')}</Label>
                 <Input
                   id="citizenVillage"
                   value={citizenVillage}
                   onChange={e => setCitizenVillage(e.target.value)}
-                  placeholder="Andika umudugudu"
+                  placeholder={t('feedback.village')}
                   required
                 />
                 {errors.citizenVillage && <p className="text-red-500 text-sm mt-1">{errors.citizenVillage}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenEmail">Imeli</Label>
+                <Label htmlFor="citizenEmail">{t('feedback.email')}</Label>
                 <Input
                   id="citizenEmail"
                   type="email"
                   value={citizenEmail}
                   onChange={e => setCitizenEmail(e.target.value)}
-                  placeholder="Andika imeli (si ngombwa)"
+                  placeholder={t('feedback.email')}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="citizenPhone">Telefoni</Label>
+                <Label htmlFor="citizenPhone">{t('feedback.phone')}</Label>
                 <Input
                   id="citizenPhone"
                   value={citizenPhone}
                   onChange={e => setCitizenPhone(e.target.value)}
-                  placeholder="Andika telefoni (si ngombwa)"
+                  placeholder={t('feedback.phone')}
                 />
               </div>
             </div>
@@ -431,7 +429,7 @@ const Index = () => {
                 className="bg-green-500 hover:bg-green-600"
                 size="lg"
               >
-                Ohereza Ibitekerezo
+                {t('feedback.submit')}
               </Button>
             </div>
           </form>
@@ -439,15 +437,15 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-green-500 py-12 px-6  text-center text-white">
+      <section className="bg-green-500 py-12 px-6 text-center text-white">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">
-          Witegure gutanga igitekerezo cyawe?
+          {t('cta.title')}
         </h2>
         <p className="text-lg text-white/80 mb-6 max-w-2xl mx-auto">
-          Sisitemu yacu yo gutanga ibitekerezo igufasha kuvugana n'abakozi ba Leta bakwiye.
+          {t('cta.subtitle')}
         </p>
         <Button asChild size="lg" className="bg-white text-green-600 hover:bg-white/90">
-          <Link to="/submit">Tanga Ikibazo Nonaha</Link>
+          <Link to="/submit">{t('cta.button')}</Link>
         </Button>
       </section>
     </div>

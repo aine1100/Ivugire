@@ -462,6 +462,7 @@ const Admin = () => {
       });
       
       setIsDialogOpen(false);
+      setResponseText(""); // Clear response text after successful update
     } catch (error) {
       console.error('Error updating complaint:', error);
       toast({
@@ -989,15 +990,15 @@ const Admin = () => {
                           <TableCell className="max-w-md">
                             <p className="truncate">{item.feedback}</p>
                           </TableCell>
-                          <TableCell>
+                            <TableCell>
                             <div className="text-sm">
                               <div>{item.citizenProvince}</div>
                               <div className="text-gray-500">
                                 {item.citizenDistrict}, {item.citizenSector}
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell>
+                            </TableCell>
+                            <TableCell>
                             <div className="text-sm">
                               <div>{item.citizenEmail}</div>
                               <div className="text-gray-500">{item.citizenPhone}</div>
@@ -1005,8 +1006,8 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <Button variant="outline" size="sm">View Details</Button>
-                          </TableCell>
-                        </TableRow>
+                            </TableCell>
+                          </TableRow>
                       ))}
                     </TableBody>
                   </Table>
@@ -1020,20 +1021,20 @@ const Admin = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-3xl font-bold">{feedbackStats.total}</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
+            </CardContent>
+          </Card>
+        
+          <Card>
+            <CardHeader>
                       <CardTitle className="text-lg">By Province</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+            </CardHeader>
+            <CardContent>
                       <div className="space-y-2">
                         {Object.entries(feedbackStats.byProvince).map(([province, count]) => (
                           <div key={province} className="flex justify-between items-center">
                             <span className="text-sm text-gray-600">{province}</span>
                             <span className="font-medium">{count}</span>
-                          </div>
+                        </div>
                         ))}
                       </div>
                     </CardContent>
@@ -1074,8 +1075,8 @@ const Admin = () => {
               </DialogHeader>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                 <div>
-                  <Label className="text-gray-500">Name</Label>
-                  <p className="font-medium">{selectedComplaint.complaint}</p>
+                  <Label className="text-gray-500">Complaint Type</Label>
+                  <p className="font-medium">{selectedComplaint.complaintType}</p>
                 </div>
                 <div>
                   <Label className="text-gray-500">Contact</Label>
@@ -1088,14 +1089,6 @@ const Admin = () => {
                 <div>
                   <Label className="text-gray-500">Location</Label>
                   <p className="font-medium">{selectedComplaint.citizenDistrict}, {selectedComplaint.citizenSector}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-500">Service Type</Label>
-                  <p className="font-medium">{selectedComplaint.complaintType}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-500">Category</Label>
-                  <p className="font-medium">{selectedComplaint.complaintType}</p>
                 </div>
                 <div className="md:col-span-2">
                   <Label className="text-gray-500">Description</Label>
@@ -1132,6 +1125,20 @@ const Admin = () => {
                     className="mt-1"
                   />
                 </div>
+
+                {selectedComplaint.response && (
+                  <div className="md:col-span-2">
+                    <Label className="text-gray-500">Previous Response</Label>
+                    <div className="mt-1 p-3 bg-gray-50 rounded-md">
+                      <p className="text-sm text-gray-600">
+                        {selectedComplaint.adminResponder && (
+                          <span className="font-medium">By {selectedComplaint.adminResponder} on {formatDate(selectedComplaint.responseDate || '')}</span>
+                        )}
+                      </p>
+                      <p className="mt-2">{selectedComplaint.response}</p>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -1139,10 +1146,10 @@ const Admin = () => {
                 </Button>
                 <Button
                   onClick={handleUpdateStatus}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !newStatus}
                   className="bg-green-500 hover:bg-green-600"
                 >
-                  {isSubmitting ? "Updating..." : "Update Status"}
+                  {isSubmitting ? "Updating..." : "Update Complaint"}
                 </Button>
               </DialogFooter>
             </>

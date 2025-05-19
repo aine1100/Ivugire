@@ -8,5 +8,5 @@ router.post("/submit",complaintController.createComplaint)
 router.get("/all",verifyAdmin,complaintController.getAllComplaints)
 router.get("/tracking/:trackingCode",complaintController.getComplaintbyTrackingId)
 router.put("/update/:id",verifyAdmin,complaintController.updateComplaintStatus)
-router.put("/update/response/:_id",verifyAdmin,complaintController.updateComplaintResponse)
+router.get("/statistics",verifyAdmin,complaintController.getComplaintStatistics)
 module.exports=router
