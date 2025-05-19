@@ -2,13 +2,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { postFeedback } from "@/api/feedbackApi";
 import { useLanguage } from "@/context/LanguageContext";
+
+const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
+
+interface ApiResponse {
+  status: string;
+  provinces?: string[];
+  districts?: string[];
+  sectors?: string[];
+  cells?: string[];
+  villages?: string[];
+}
 
 const Index = () => {
   const { t } = useLanguage();
@@ -22,13 +33,181 @@ const Index = () => {
   const [citizenPhone, setCitizenPhone] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const provinces = [
-    "Kigali City",
-    "Eastern Province",
-    "Northern Province",
-    "Southern Province",
-    "Western Province"
-  ];
+  const [isLoading, setIsLoading] = useState({
+    provinces: false,
+    districts: false,
+    sectors: false,
+    cells: false,
+    villages: false,
+  });
+
+  const [locations, setLocations] = useState<{
+    provinces: string[];
+    districts: string[];
+    sectors: string[];
+    cells: string[];
+    villages: string[];
+  }>(
+    {
+      provinces: [],
+      districts: [],
+      sectors: [],
+      cells: [],
+      villages: [],
+    }
+  );
+
+  // Fetch provinces on component mount
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setIsLoading((prev) => ({ ...prev, provinces: true }));
+      try {
+        const response = await fetch(`${API_BASE_URL}/provinces`);
+        if (!response.ok) throw new Error('Failed to fetch provinces');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.provinces) {
+          setLocations((prev) => ({ ...prev, provinces: data.provinces || [] }));
+        }
+      } catch (error) {
+        toast.error("Failed to load provinces. Please try again.");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, provinces: false }));
+      }
+    };
+
+    fetchProvinces();
+  }, [toast]);
+
+  // Fetch districts when province changes
+  useEffect(() => {
+    const fetchDistricts = async () => {
+      if (!citizenProvince) return;
+
+      setIsLoading((prev) => ({ ...prev, districts: true }));
+      try {
+        const encodedProvince = encodeURIComponent(citizenProvince);
+        const response = await fetch(
+          `${API_BASE_URL}/province/${encodedProvince}/districts`
+        );
+        if (!response.ok) throw new Error('Failed to fetch districts');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.districts) {
+          setLocations((prev) => ({ ...prev, districts: data.districts || [] }));
+        }
+      } catch (error) {
+        toast.error("Failed to load districts. Please try again.");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, districts: false }));
+      }
+    };
+
+    fetchDistricts();
+  }, [citizenProvince, toast]);
+
+  // Fetch sectors when district changes
+  useEffect(() => {
+    const fetchSectors = async () => {
+      if (!citizenProvince || !citizenDistrict) return;
+
+      setIsLoading((prev) => ({ ...prev, sectors: true }));
+      try {
+        const encodedProvince = encodeURIComponent(citizenProvince);
+        const encodedDistrict = encodeURIComponent(citizenDistrict);
+        const response = await fetch(
+          `${API_BASE_URL}/province/${encodedProvince}/district/${encodedDistrict}/sector`
+        );
+        if (!response.ok) throw new Error('Failed to fetch sectors');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.sectors) {
+          setLocations((prev) => ({ ...prev, sectors: data.sectors || [] }));
+        }
+      } catch (error) {
+        toast.error("Failed to load sectors. Please try again.");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, sectors: false }));
+      }
+    };
+
+    fetchSectors();
+  }, [citizenProvince, citizenDistrict, toast]);
+
+  // Fetch cells when sector changes
+  useEffect(() => {
+    const fetchCells = async () => {
+      if (!citizenProvince || !citizenDistrict || !citizenSector) return;
+
+      setIsLoading((prev) => ({ ...prev, cells: true }));
+      try {
+        const encodedProvince = encodeURIComponent(citizenProvince);
+        const encodedDistrict = encodeURIComponent(citizenDistrict);
+        const encodedSector = encodeURIComponent(citizenSector);
+        const response = await fetch(
+          `${API_BASE_URL}/province/${encodedProvince}/district/${encodedDistrict}/sector/${encodedSector}/cells`
+        );
+        if (!response.ok) throw new Error('Failed to fetch cells');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.cells) {
+          setLocations((prev) => ({ ...prev, cells: data.cells || [] }));
+        }
+      } catch (error) {
+        toast.error("Failed to load cells. Please try again.");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, cells: false }));
+      }
+    };
+
+    fetchCells();
+  }, [citizenProvince, citizenDistrict, citizenSector, toast]);
+
+  // Fetch villages when cell changes
+  useEffect(() => {
+    const fetchVillages = async () => {
+      if (!citizenProvince || !citizenDistrict || !citizenSector || !citizenCell) return;
+
+      setIsLoading((prev) => ({ ...prev, villages: true }));
+      try {
+        const encodedProvince = encodeURIComponent(citizenProvince);
+        const encodedDistrict = encodeURIComponent(citizenDistrict);
+        const encodedSector = encodeURIComponent(citizenSector);
+        const encodedCell = encodeURIComponent(citizenCell);
+        const response = await fetch(
+          `${API_BASE_URL}/province/${encodedProvince}/district/${encodedDistrict}/sector/${encodedSector}/cell/${encodedCell}/villages`
+        );
+        if (!response.ok) throw new Error('Failed to fetch villages');
+        const data: ApiResponse = await response.json();
+        if (data.status === "success" && data.villages) {
+          setLocations((prev) => ({ ...prev, villages: data.villages || [] }));
+        }
+      } catch (error) {
+        toast.error("Failed to load villages. Please try again.");
+      } finally {
+        setIsLoading((prev) => ({ ...prev, villages: false }));
+      }
+    };
+
+    fetchVillages();
+  }, [citizenProvince, citizenDistrict, citizenSector, citizenCell, toast]);
+
+  const handleLocationChange = (type: string, value: string) => {
+    const resetFields: Record<string, React.Dispatch<React.SetStateAction<string>>> = {
+      province: setCitizenProvince,
+      district: setCitizenDistrict,
+      sector: setCitizenSector,
+      cell: setCitizenCell,
+      village: setCitizenVillage,
+    };
+
+    const resetBelow = (level: string) => {
+      const levels = ['province', 'district', 'sector', 'cell', 'village'];
+      const startIndex = levels.indexOf(level);
+      for (let i = startIndex + 1; i < levels.length; i++) {
+        resetFields[levels[i]]('');
+      }
+    };
+
+    resetFields[type](value);
+    resetBelow(type);
+  };
 
   const handleFeedbackSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,11 +234,11 @@ const Index = () => {
     })
     .then((response) => {
       console.log("Feedback sent successfully:", response);
-      toast.success("Ibitekerezo byawe byoherejwe neza!");
+      toast.success(t('feedback.successMessage'));
     })
     .catch((error) => {
       console.error("Error sending feedback:", error);
-      toast.error("Habayeho ikosa mu kohereza ibitekerezo.");
+      toast.error(t('feedback.errorMessage'));
     });
    
     setFeedback("");
@@ -347,14 +526,15 @@ const Index = () => {
                 <Label htmlFor="citizenProvince">{t('feedback.province')}</Label>
                 <Select
                   value={citizenProvince}
-                  onValueChange={setCitizenProvince}
+                  onValueChange={(value) => handleLocationChange('province', value)}
                   required
+                  disabled={isLoading.provinces}
                 >
                   <SelectTrigger id="citizenProvince">
-                    <SelectValue placeholder={t('feedback.province')} />
+                    <SelectValue placeholder={t('feedback.selectProvincePlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {provinces.map((p) => (
+                    {locations.provinces.map((p) => (
                       <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
                   </SelectContent>
@@ -363,44 +543,76 @@ const Index = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="citizenDistrict">{t('feedback.district')}</Label>
-                <Input
-                  id="citizenDistrict"
+                <Select
                   value={citizenDistrict}
-                  onChange={e => setCitizenDistrict(e.target.value)}
-                  placeholder={t('feedback.district')}
+                  onValueChange={(value) => handleLocationChange('district', value)}
                   required
-                />
+                  disabled={!citizenProvince || isLoading.districts}
+                >
+                   <SelectTrigger id="citizenDistrict">
+                    <SelectValue placeholder={t('feedback.selectDistrictPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.districts.map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.citizenDistrict && <p className="text-red-500 text-sm mt-1">{errors.citizenDistrict}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="citizenSector">{t('feedback.sector')}</Label>
-                <Input
-                  id="citizenSector"
+                 <Select
                   value={citizenSector}
-                  onChange={e => setCitizenSector(e.target.value)}
-                  placeholder={t('feedback.sector')}
-                />
+                  onValueChange={(value) => handleLocationChange('sector', value)}
+                  disabled={!citizenDistrict || isLoading.sectors}
+                >
+                  <SelectTrigger id="citizenSector">
+                    <SelectValue placeholder={t('feedback.selectSectorPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.sectors.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="citizenCell">{t('feedback.cell')}</Label>
-                <Input
-                  id="citizenCell"
+                 <Select
                   value={citizenCell}
-                  onChange={e => setCitizenCell(e.target.value)}
-                  placeholder={t('feedback.cell')}
+                  onValueChange={(value) => handleLocationChange('cell', value)}
                   required
-                />
+                  disabled={!citizenSector || isLoading.cells}
+                >
+                  <SelectTrigger id="citizenCell">
+                    <SelectValue placeholder={t('feedback.selectCellPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.cells.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.citizenCell && <p className="text-red-500 text-sm mt-1">{errors.citizenCell}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="citizenVillage">{t('feedback.village')}</Label>
-                <Input
-                  id="citizenVillage"
+                <Select
                   value={citizenVillage}
-                  onChange={e => setCitizenVillage(e.target.value)}
-                  placeholder={t('feedback.village')}
+                  onValueChange={(value) => handleLocationChange('village', value)}
                   required
-                />
+                  disabled={!citizenCell || isLoading.villages}
+                >
+                  <SelectTrigger id="citizenVillage">
+                    <SelectValue placeholder={t('feedback.selectVillagePlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.villages.map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.citizenVillage && <p className="text-red-500 text-sm mt-1">{errors.citizenVillage}</p>}
               </div>
               <div className="space-y-2">
@@ -410,7 +622,7 @@ const Index = () => {
                   type="email"
                   value={citizenEmail}
                   onChange={e => setCitizenEmail(e.target.value)}
-                  placeholder={t('feedback.email')}
+                  placeholder={t('feedback.emailPlaceholder')}
                 />
               </div>
               <div className="space-y-2">
@@ -419,7 +631,7 @@ const Index = () => {
                   id="citizenPhone"
                   value={citizenPhone}
                   onChange={e => setCitizenPhone(e.target.value)}
-                  placeholder={t('feedback.phone')}
+                  placeholder={t('feedback.phonePlaceholder')}
                 />
               </div>
             </div>

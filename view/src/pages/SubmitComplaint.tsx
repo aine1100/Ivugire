@@ -22,7 +22,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import { createComplaint } from "@/api/complaintApi";
 import { useLanguage } from "@/context/LanguageContext";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
 
@@ -40,77 +39,82 @@ interface ApiResponse {
   villages?: string[];
 }
 
-const complaintCategories = {
-  "Water Supply": [
-    "Service Interruption",
-    "Quality Issues",
-    "Billing Problems",
-    "Connection Problems",
-    "Other",
-  ],
-  Electricity: [
-    "Power Outage",
-    "Voltage Issues",
-    "Billing Issues",
-    "Connection Problems",
-    "Other",
-  ],
-  Roads: [
-    "Potholes",
-    "Traffic Signals",
-    "Road Signs",
-    "Construction Issues",
-    "Other",
-  ],
-  Healthcare: [
-    "Service Quality",
-    "Medication Issues",
-    "Staff Behavior",
-    "Facilities",
-    "Other",
-  ],
-  Education: [
-    "School Facilities",
-    "Teacher Issues",
-    "Curriculum",
-    "Administration",
-    "Other",
-  ],
-  Sanitation: [
-    "Waste Collection",
-    "Public Toilets",
-    "Drainage",
-    "Cleanliness",
-    "Other",
-  ],
-  "Public Transport": [
-    "Service Frequency",
-    "Driver Behavior",
-    "Vehicle Condition",
-    "Routes",
-    "Other",
-  ],
-  Security: [
-    "Police Response",
-    "Crime Reporting",
-    "Safety Concerns",
-    "Patrols",
-    "Other",
-  ],
-  "Land Services": [
-    "Registration",
-    "Surveying",
-    "Documentation",
-    "Disputes",
-    "Other",
-  ],
-  Other: ["General Complaint", "Suggestion", "Inquiry", "Feedback"],
-};
-
 const SubmitComplaint = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t } = useLanguage();
+
+  const complaintCategories = {
+    [t('categories.waterSupply')]: [
+      t('subcategories.serviceInterruption'),
+      t('subcategories.qualityIssues'),
+      t('subcategories.billingProblems'),
+      t('subcategories.connectionProblems'),
+      t('categories.other'),
+    ],
+    [t('categories.electricity')]: [
+      t('subcategories.powerOutage'),
+      t('subcategories.voltageIssues'),
+      t('subcategories.billingProblems'),
+      t('subcategories.connectionProblems'),
+      t('categories.other'),
+    ],
+    [t('categories.roads')]: [
+      t('subcategories.potholes'),
+      t('subcategories.trafficSignals'),
+      t('subcategories.roadSigns'),
+      t('subcategories.constructionIssues'),
+      t('categories.other'),
+    ],
+    [t('categories.healthcare')]: [
+      t('subcategories.serviceQuality'),
+      t('subcategories.medicationIssues'),
+      t('subcategories.staffBehavior'),
+      t('subcategories.facilities'),
+      t('categories.other'),
+    ],
+    [t('categories.education')]: [
+      t('subcategories.schoolFacilities'),
+      t('subcategories.teacherIssues'),
+      t('subcategories.curriculum'),
+      t('subcategories.administration'),
+      t('categories.other'),
+    ],
+    [t('categories.sanitation')]: [
+      t('subcategories.wasteCollection'),
+      t('subcategories.publicToilets'),
+      t('subcategories.drainage'),
+      t('subcategories.cleanliness'),
+      t('categories.other'),
+    ],
+    [t('categories.publicTransport')]: [
+      t('subcategories.serviceFrequency'),
+      t('subcategories.driverBehavior'),
+      t('subcategories.vehicleCondition'),
+      t('subcategories.routes'),
+      t('categories.other'),
+    ],
+    [t('categories.security')]: [
+      t('subcategories.policeResponse'),
+      t('subcategories.crimeReporting'),
+      t('subcategories.safetyConcerns'),
+      t('subcategories.patrols'),
+      t('categories.other'),
+    ],
+    [t('categories.landServices')]: [
+      t('subcategories.registration'),
+      t('subcategories.surveying'),
+      t('subcategories.documentation'),
+      t('subcategories.disputes'),
+      t('categories.other'),
+    ],
+    [t('categories.other')]: [
+      t('subcategories.generalComplaint'),
+      t('subcategories.suggestion'),
+      t('subcategories.inquiry'),
+      t('subcategories.feedback'),
+    ],
+  };
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -127,6 +131,7 @@ const SubmitComplaint = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState({
     provinces: false,
     districts: false,
@@ -309,6 +314,7 @@ const SubmitComplaint = () => {
   }, [formData.province, formData.district, formData.sector, formData.cell, toast]);
 
   const handleLocationChange = (type: string, value: string) => {
+    console.log(`Updating location field ${type} with value:`, value);
     const resetFields: Record<string, Record<string, string>> = {
       province: { district: "", sector: "", cell: "", village: "" },
       district: { sector: "", cell: "", village: "" },
@@ -327,33 +333,87 @@ const SubmitComplaint = () => {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
+    console.log(`Updating field ${name} with value:`, value);
     setFormData(prev => ({
       ...prev,
       [name]: value,
     }));
   };
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    console.log('Validating form data:', formData);
+
+    if (!formData.fullName.trim()) {
+      errors.fullName = t('validation.required');
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.fullName)) {
+      errors.fullName = t('validation.onlyLettersAndSpaces');
+    }
+
+    if (!formData.citizenCountryId.trim()) {
+      errors.citizenCountryId = t('validation.required');
+    } else if (!/^\d{16}$/.test(formData.citizenCountryId)) {
+      errors.citizenCountryId = t('validation.nationalId');
+    }
+
+    if (!formData.nationalIdOrEmail.trim()) {
+      errors.nationalIdOrEmail = t('validation.required');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.nationalIdOrEmail)) {
+      errors.nationalIdOrEmail = t('validation.email');
+    }
+
+    if (!formData.phoneNumber.trim()) {
+      errors.phoneNumber = t('validation.required');
+    } else if (!/^\+?[0-9]{10,15}$/.test(formData.phoneNumber)) {
+      errors.phoneNumber = t('validation.phone');
+    }
+
+    if (!formData.province) {
+      errors.province = t('validation.required');
+    }
+
+    if (!formData.district) {
+      errors.district = t('validation.required');
+    }
+
+    if (!formData.sector) {
+      errors.sector = t('validation.required');
+    }
+
+    if (!formData.cell) {
+      errors.cell = t('validation.required');
+    }
+
+    if (!formData.village) {
+      errors.village = t('validation.required');
+    }
+
+    if (!formData.serviceType) {
+      errors.serviceType = t('validation.required');
+    }
+
+    if (!formData.description.trim()) {
+      errors.description = t('validation.required');
+    } else if (formData.description.length < 0) {
+      errors.description = t('validation.minLength').replace('{min}', '10');
+    }
+
+    console.log('Validation errors:', errors);
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    console.log('Form submitted with data:', formData);
 
-    // Validate form
-    if (
-      !formData.fullName ||
-      !formData.citizenCountryId ||
-      !formData.nationalIdOrEmail ||
-      !formData.phoneNumber ||
-      !formData.province ||
-      !formData.district ||
-      !formData.sector ||
-      !formData.cell ||
-      !formData.village ||
-      !formData.serviceType ||
-      !formData.description
-    ) {
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setErrors(errors);
+      console.log('Form validation failed with errors:', errors);
       toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
+        title: t('submit.error'),
+        description: Object.values(errors)[0] || t('validation.required'),
         variant: "destructive",
       });
       setIsSubmitting(false);
@@ -361,7 +421,6 @@ const SubmitComplaint = () => {
     }
 
     try {
-      // Prepare complaint data according to the API structure
       const complaintData = {
         complaint: formData.description,
         complaintType: formData.serviceType,
@@ -374,33 +433,19 @@ const SubmitComplaint = () => {
         citizenEmail: formData.nationalIdOrEmail,
         citizenPhone: formData.phoneNumber,
       };
-
-      console.log('Submitting complaint data:', complaintData); // Debug log
+      console.log('Submitting complaint data:', complaintData);
 
       const response = await createComplaint(complaintData);
-      console.log('Complaint submission response:', response); // Debug log
-      
       toast({
-        title: "Complaint Submitted",
-        description: "Your complaint has been successfully submitted.",
+        title: t('submit.success'),
+        description: t('submit.successMessage'),
       });
-
-      // Navigate to success page or tracking page
-      setTimeout(() => {
-        navigate(`/track?id=${response.id}`);
-      }, 1500);
+      navigate(`/track?complaintId=${response.id}`);
     } catch (error) {
       console.error('Error submitting complaint:', error);
-      // Log more detailed error information
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-        });
-      }
       toast({
-        title: "Submission Error",
-        description: "An error occurred while submitting your complaint. Please try again.",
+        title: t('submit.error'),
+        description: t('submit.errorMessage'),
         variant: "destructive",
       });
     } finally {
@@ -410,11 +455,6 @@ const SubmitComplaint = () => {
 
   return (
     <div className="max-w-3xl mx-auto py-4 animate-fade-in">
-      {/* Language Switcher */}
-      <div className="fixed top-4 right-4 z-50">
-        <LanguageSwitcher />
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Submit a Complaint</CardTitle>
@@ -428,11 +468,11 @@ const SubmitComplaint = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Personal Information Fields */}
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="fullName">{t('submit.fullName')}</Label>
                 <Input
                   id="fullName"
                   name="fullName"
-                  placeholder="Enter your full name"
+                  placeholder={t('submit.fullNamePlaceholder')}
                   value={formData.fullName}
                   onChange={handleInputChange}
                   required
@@ -440,11 +480,12 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="citizenCountryId">National ID</Label>
+                <Label htmlFor="citizenCountryId">{t('submit.nationalId')}</Label>
                 <Input
                   id="citizenCountryId"
                   name="citizenCountryId"
-                  placeholder="Enter your National ID"
+                  type="text"
+                  placeholder={t('submit.nationalIdPlaceholder')}
                   value={formData.citizenCountryId}
                   onChange={handleInputChange}
                   required
@@ -452,12 +493,12 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="nationalIdOrEmail">Email</Label>
+                <Label htmlFor="nationalIdOrEmail">{t('submit.email')}</Label>
                 <Input
                   id="nationalIdOrEmail"
                   name="nationalIdOrEmail"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t('submit.emailPlaceholder')}
                   value={formData.nationalIdOrEmail}
                   onChange={handleInputChange}
                   required
@@ -465,11 +506,11 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Label htmlFor="phoneNumber">{t('submit.phone')}</Label>
                 <Input
                   id="phoneNumber"
                   name="phoneNumber"
-                  placeholder="Enter your phone number"
+                  placeholder={t('submit.phonePlaceholder')}
                   value={formData.phoneNumber}
                   onChange={handleInputChange}
                   required
@@ -478,14 +519,14 @@ const SubmitComplaint = () => {
 
               {/* Location Selection Fields */}
               <div className="space-y-2">
-                <Label htmlFor="province">Province</Label>
+                <Label htmlFor="province">{t('submit.province')}</Label>
                 <Select
                   value={formData.province}
                   onValueChange={(value) => handleLocationChange("province", value)}
                   disabled={isLoading.provinces}
                 >
                   <SelectTrigger id="province">
-                    <SelectValue placeholder="Select province" />
+                    <SelectValue placeholder={t('submit.selectProvince')} />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.provinces.map((province) => (
@@ -498,14 +539,14 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="district">District</Label>
+                <Label htmlFor="district">{t('submit.district')}</Label>
                 <Select
                   value={formData.district}
                   onValueChange={(value) => handleLocationChange("district", value)}
                   disabled={!formData.province || isLoading.districts}
                 >
                   <SelectTrigger id="district">
-                    <SelectValue placeholder="Select district" />
+                    <SelectValue placeholder={t('submit.selectDistrict')} />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.districts.map((district) => (
@@ -518,14 +559,14 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sector">Sector</Label>
+                <Label htmlFor="sector">{t('submit.sector')}</Label>
                 <Select
                   value={formData.sector}
                   onValueChange={(value) => handleLocationChange("sector", value)}
                   disabled={!formData.district || isLoading.sectors}
                 >
                   <SelectTrigger id="sector">
-                    <SelectValue placeholder="Select sector" />
+                    <SelectValue placeholder={t('submit.selectSector')} />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.sectors.map((sector) => (
@@ -538,14 +579,14 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cell">Cell</Label>
+                <Label htmlFor="cell">{t('submit.cell')}</Label>
                 <Select
                   value={formData.cell}
                   onValueChange={(value) => handleLocationChange("cell", value)}
                   disabled={!formData.sector || isLoading.cells}
                 >
                   <SelectTrigger id="cell">
-                    <SelectValue placeholder="Select cell" />
+                    <SelectValue placeholder={t('submit.selectCell')} />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.cells.map((cell) => (
@@ -558,14 +599,14 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="village">Village</Label>
+                <Label htmlFor="village">{t('submit.village')}</Label>
                 <Select
                   value={formData.village}
                   onValueChange={(value) => handleLocationChange("village", value)}
                   disabled={!formData.cell || isLoading.villages}
                 >
                   <SelectTrigger id="village">
-                    <SelectValue placeholder="Select village" />
+                    <SelectValue placeholder={t('submit.selectVillage')} />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.villages.map((village) => (
@@ -578,13 +619,13 @@ const SubmitComplaint = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="serviceType">Type of Service</Label>
+                <Label htmlFor="serviceType">{t('submit.serviceType')}</Label>
                 <Select
                   value={formData.serviceType}
                   onValueChange={(value) => handleLocationChange("serviceType", value)}
                 >
                   <SelectTrigger id="serviceType">
-                    <SelectValue placeholder="Select service type" />
+                    <SelectValue placeholder={t('submit.selectServiceType')} />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.keys(complaintCategories).map((type) => (
@@ -598,11 +639,11 @@ const SubmitComplaint = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('submit.description')}</Label>
               <Textarea
                 id="description"
                 name="description"
-                placeholder="Please describe your complaint in detail"
+                placeholder={t('submit.descriptionPlaceholder')}
                 rows={5}
                 value={formData.description}
                 onChange={handleInputChange}
@@ -616,14 +657,14 @@ const SubmitComplaint = () => {
               type="button"
               onClick={() => navigate("/")}
             >
-              Cancel
+              {t('submit.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
               className="bg-rwanda-blue hover:bg-rwanda-blue/90"
             >
-              {isSubmitting ? "Submitting..." : "Submit Complaint"}
+              {isSubmitting ? t('submit.submitting') : t('submit.submit')}
             </Button>
           </CardFooter>
         </form>

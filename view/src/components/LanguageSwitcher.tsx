@@ -1,27 +1,23 @@
-import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/LanguageContext";
+import { Button } from "@/components/ui/button";
+import { Globe } from "lucide-react";
 
 export function LanguageSwitcher() {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+
+  const toggleLanguage = () => {
+    setLanguage(language === 'en' ? 'rw' : 'en');
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant={language === 'en' ? 'default' : 'outline'}
-        size="sm"
-        onClick={() => setLanguage('en')}
-        className="min-w-[60px]"
-      >
-        EN
-      </Button>
-      <Button
-        variant={language === 'rw' ? 'default' : 'outline'}
-        size="sm"
-        onClick={() => setLanguage('rw')}
-        className="min-w-[60px]"
-      >
-        RW
-      </Button>
-    </div>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={toggleLanguage}
+      className="flex items-center gap-2"
+    >
+      <Globe className="h-4 w-4" />
+      <span>{language === 'en' ? 'Kinyarwanda' : 'English'}</span>
+    </Button>
   );
 } 

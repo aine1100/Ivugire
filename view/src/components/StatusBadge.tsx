@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export type Status = "Submitted" | "Under Review" | "In Progress" | "Resolved" | "Rejected";
+export type Status = "Submitted" | "Under Review" | "In Progress" | "Pending" | "Resolved" | "Rejected";
 
 interface StatusBadgeProps {
   status: Status;
@@ -13,7 +13,7 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
         return "bg-blue-100 text-blue-800";
       case "Under Review":
         return "bg-yellow-100 text-yellow-800";
-      case "In Progress":
+      case "Pending":
         return "bg-purple-100 text-purple-800";
       case "Resolved":
         return "bg-green-100 text-green-800";

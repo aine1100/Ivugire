@@ -113,7 +113,7 @@ const AdminLogin = () => {
           </form>
           <div className="text-center mt-4 mb-4 text-sm">
             <span className="text-gray-500">Test login: </span>
-            <span className="text-gray-700">admin@cesrwanda.gov.rw / admin123</span>
+            <span className="text-gray-700">ainedushimire@gmail.com / aine123</span>
           </div>
         </Card>
       </div>

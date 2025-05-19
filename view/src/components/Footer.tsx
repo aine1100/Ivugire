@@ -1,7 +1,9 @@
-
 import { Link } from "react-router-dom";
+import { useLanguage } from "@/context/LanguageContext";
 
 const Footer = () => {
+  const { t } = useLanguage();
+
   return (
     <footer className="bg-white py-12 border-t">
       <div className="container mx-auto px-4 md:px-6">
@@ -11,37 +13,37 @@ const Footer = () => {
               <span className="font-bold text-lg">Ivugire</span>
             </div>
             <p className="text-gray-600">
-              Sisitemu yo gutanga no gukurikirana ibibazo n'ibitekerezo ku mirimo ya Leta mu Rwanda.
+              {t('footer.description')}
             </p>
           </div>
 
           <div>
-            <h3 className="font-bold text-lg mb-4">Aho Kujya</h3>
+            <h3 className="font-bold text-lg mb-4">{t('footer.links.title')}</h3>
             <ul className="space-y-2">
               <li>
                 <Link to="/" className="text-gray-600 hover:text-green-600">
-                  Ahabanza
+                  {t('footer.links.home')}
                 </Link>
               </li>
               <li>
                 <Link to="/submit" className="text-gray-600 hover:text-green-600">
-                  Tanga Ikibazo
+                  {t('footer.links.submit')}
                 </Link>
               </li>
               <li>
                 <Link to="/track" className="text-gray-600 hover:text-green-600">
-                  Kureba Ikibazo
+                  {t('footer.links.track')}
                 </Link>
               </li>
             </ul>
           </div>
 
           <div>
-            <h3 className="font-bold text-lg mb-4">Twandikire</h3>
+            <h3 className="font-bold text-lg mb-4">{t('footer.contact.title')}</h3>
             <address className="not-italic text-gray-600">
-              <p>Kigali, Rwanda</p>
-              <p>Email: support@cesrwanda.gov.rw</p>
-              <p>Tel: +250 788 123 456</p>
+              <p>{t('footer.contact.location')}</p>
+              <p>Email: {t('footer.contact.email')}</p>
+              <p>Tel: {t('footer.contact.phone')}</p>
             </address>
           </div>
         </div>
@@ -53,7 +55,7 @@ const Footer = () => {
             <div className="h-4 w-4 bg-blue-500 rounded-full"></div>
           </div>
           <p className="text-gray-600 text-sm">
-            &copy; {new Date().getFullYear()} Citizen Engagement System Rwanda. Uburenganzira bwose bwateganyijwe.
+            &copy; {new Date().getFullYear()} {t('footer.copyright')}
           </p>
         </div>
       </div>
