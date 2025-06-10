@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
+import { logout } from "@/api/authApi";
 
 interface AdminHeaderProps {
   setSidebarOpen: (open: boolean) => void;
@@ -63,8 +64,7 @@ const AdminHeader = ({ setSidebarOpen, sidebarOpen }: AdminHeaderProps) => {
   }, [navigate, location.pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate("/admin");
+   logout()
   };
 
   // Don't render header on login page

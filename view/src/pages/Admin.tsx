@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useComplaints } from "@/context/ComplaintContext";
 import StatusBadge from "@/components/StatusBadge";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,24 +21,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveCont
 import { ChartContainer } from "@/components/ui/chart";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getAllComplaints, getAllFeedback, updateComplaintStatus } from "@/api/adminApi";
-import { MessageSquare } from "lucide-react";
+import { getAllComplaints, getAllFeedback } from "@/api/adminApi";
 import axios from "axios";
 import { queryClient } from "../lib/queryClient";
 
 const API_BASE_URL = import.meta.env.VITE_LOCATIONS_URL;
 
-interface ApiResponse {
-  status: string;
-  provinces?: string[];
-  districts?: string[];
-  sectors?: string[];
-  cells?: string[];
-  villages?: string[];
-}
-
-// Define Status type at the top level
-type Status = "Submitted" | "Under Review" | "In Progress" | "Resolved" | "Rejected";
+type Status = "Resolved" | "Rejected" | "Pending";
 
 interface Complaint {
   _id: string;
@@ -61,17 +49,30 @@ interface Complaint {
   postingDate: string;
 }
 
+interface RawFeedback {
+  _id: string;
+  feedback?: string;
+  citizenProvince?: string;
+  citizenDistrict?: string;
+  citizenSector?: string;
+  citizenCell?: string;
+  citizenVillage?: string;
+  citizenEmail?: string;
+  citizenPhone?: string;
+  __v?: number;
+}
+
 interface Feedback {
   _id: string;
   feedback: string;
-  citizenProvince: string;
-  citizenDistrict: string;
-  citizenSector: string;
-  citizenCell: string;
-  citizenVillage: string;
-  citizenEmail: string;
-  citizenPhone: string;
-  __v: number;
+  citizenProvince?: string;
+  citizenDistrict?: string;
+  citizenSector?: string;
+  citizenCell?: string;
+  citizenVillage?: string;
+  citizenEmail?: string;
+  citizenPhone?: string;
+  __v?: number;
 }
 
 interface ProvinceStats {
@@ -98,24 +99,21 @@ const Admin = () => {
   const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
   const [filters, setFilters] = useState({
     searchTerm: "",
-    status: "all" as "all" | Status,
+    status: "all" as "all" | Status | "Pending",
     category: "all",
     district: "all",
     province: "all"
   });
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [responseText, setResponseText] = useState("");
-  const [newStatus, setNewStatus] = useState<Status>("Submitted");
+  const [newStatus, setNewStatus] = useState<Status>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
   const [currentView, setCurrentView] = useState("dashboard");
   const [statusCounts, setStatusCounts] = useState<Record<Status, number>>({
-    "Submitted": 0,
-    "Under Review": 0,
-    "In Progress": 0,
     "Resolved": 0,
-    "Rejected": 0
+    "Rejected": 0,
+    "Pending": 0,
   });
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [provinceStats, setProvinceStats] = useState<Record<string, ProvinceStats>>({});
@@ -123,7 +121,6 @@ const Admin = () => {
     total: number;
     byStatus: Record<Status, number>;
   }>>({});
-  const [availableDistricts, setAvailableDistricts] = useState<string[]>([]);
   const [locations, setLocations] = useState<{
     provinces: string[];
     districts: string[];
@@ -147,16 +144,8 @@ const Admin = () => {
     byDistrict: {}
   });
 
-  const [statistics, setStatistics] = useState<ComplaintStatistics | null>(null);
-  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-
-  // Add getStatusCount function
-  const getStatusCount = (status: Status) => {
-    return statusCounts[status] || 0;
-  };
-
-  // Update the query to use proper typing
-  const { data: complaintsData, isLoading: isLoadingComplaints, error: complaintsError } = useQuery({
+  // Queries
+  const { data: complaintsData = [], isLoading: isLoadingComplaints, error: complaintsError } = useQuery({
     queryKey: ['complaints'],
     queryFn: getAllComplaints,
     select: (data) => data.map((complaint: Complaint) => ({
@@ -165,44 +154,51 @@ const Admin = () => {
     }))
   });
 
-  // Fetch feedback
-  const { data: feedbackData, isLoading: isLoadingFeedback, error: feedbackError } = useQuery({
+  const { data: feedbackData = [], isLoading: isLoadingFeedback, error: feedbackError } = useQuery({
     queryKey: ['feedback'],
-    queryFn: getAllFeedback
+    queryFn: getAllFeedback,
+    select: (data: RawFeedback[]) => data.map((item) => ({
+      _id: item._id,
+      feedback: item.feedback || '',
+      citizenProvince: item.citizenProvince,
+      citizenDistrict: item.citizenDistrict,
+      citizenSector: item.citizenSector,
+      citizenCell: item.citizenCell,
+      citizenVillage: item.citizenVillage,
+      citizenEmail: item.citizenEmail,
+      citizenPhone: item.citizenPhone,
+      __v: item.__v
+    })) as Feedback[]
   });
 
-  // Fetch statistics
-  const { data: statsData } = useQuery<ComplaintStatistics>({
-    queryKey: ['complaintStatistics'],
-    queryFn: async () => {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/complaint/statistics`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      return response.data;
-    }
-  });
-
-  // Get the current tab from URL
+  // Tabs from URL
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tab = searchParams.get('tab');
-    
-    if (tab) {
-      setCurrentView(tab);
-    } else {
-      setCurrentView("dashboard");
-    }
+    setCurrentView(tab || "dashboard");
   }, [location.search]);
 
-  // Update useEffect for filtering
+  // Status counts for dashboard
   useEffect(() => {
     if (!complaintsData) return;
+    const rawStatusCounts: Record<Status, number> = {
+     
+      "Resolved": 0,
+      "Rejected": 0,
+      "Pending": 0,
+    };
+    complaintsData.forEach((complaint) => {
+      if (complaint.status in rawStatusCounts) {
+        rawStatusCounts[complaint.status]++;
+      }
+    });
+    setStatusCounts(rawStatusCounts);
+  }, [complaintsData]);
 
-    // Apply filters
+  // Filtering
+  useEffect(() => {
+    if (!complaintsData) return;
     let results = [...complaintsData];
-
     if (filters.searchTerm) {
       const term = filters.searchTerm.toLowerCase();
       results = results.filter(
@@ -212,78 +208,50 @@ const Admin = () => {
           (complaint.complaint?.toLowerCase().includes(term) || false)
       );
     }
-
     if (filters.province !== "all") {
       results = results.filter(complaint => complaint.citizenProvince === filters.province);
     }
-
     if (filters.district !== "all") {
       results = results.filter(complaint => complaint.citizenDistrict === filters.district);
     }
-
     if (filters.status !== "all") {
-      results = results.filter(complaint => complaint.status === filters.status);
+      results = results.filter(complaint => {
+        if (filters.status === 'Pending') {
+          return  complaint.status === 'Pending';
+        } else {
+          return complaint.status === filters.status;
+        }
+      });
     }
-
     if (filters.category !== "all") {
       results = results.filter(complaint => complaint.complaintType === filters.category);
     }
-
     setFilteredComplaints(results);
 
-    // Calculate statistics
-    const statusData: Record<Status, number> = {
-      "Submitted": 0,
-      "Under Review": 0,
-      "In Progress": 0,
-      "Resolved": 0,
-      "Rejected": 0
-    };
-
+    // Province stats for filtered
     const provinceData: Record<string, ProvinceStats> = {};
-
     results.forEach((complaint) => {
-      // Count by status
-      statusData[complaint.status] = (statusData[complaint.status] || 0) + 1;
-      
-      // Count by province and district
       if (!provinceData[complaint.citizenProvince]) {
         provinceData[complaint.citizenProvince] = {
           total: 0,
-          byStatus: {
-            "Submitted": 0,
-            "Under Review": 0,
-            "In Progress": 0,
-            "Resolved": 0,
-            "Rejected": 0
-          },
+          byStatus: {  "Resolved": 0, "Rejected": 0, "Pending": 0 },
           districts: {}
         };
       }
-
       if (!provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict]) {
         provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict] = {
           total: 0,
-          byStatus: {
-            "Submitted": 0,
-            "Under Review": 0,
-            "In Progress": 0,
-            "Resolved": 0,
-            "Rejected": 0
-          }
+          byStatus: {  "Resolved": 0, "Rejected": 0, "Pending": 0 }
         };
       }
-
       provinceData[complaint.citizenProvince].total++;
       provinceData[complaint.citizenProvince].byStatus[complaint.status]++;
       provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict].total++;
       provinceData[complaint.citizenProvince].districts[complaint.citizenDistrict].byStatus[complaint.status]++;
     });
-
-    setStatusCounts(statusData);
     setProvinceStats(provinceData);
 
-    // Calculate category statistics
+    // Category stats
     const categoryData: Record<string, number> = {};
     results.forEach((complaint) => {
       categoryData[complaint.complaintType] = (categoryData[complaint.complaintType] || 0) + 1;
@@ -291,74 +259,52 @@ const Admin = () => {
     setCategoryCounts(categoryData);
   }, [complaintsData, filters]);
 
-  // Fetch provinces on component mount
+  // Fetch provinces/districts for filters
   useEffect(() => {
     const fetchProvinces = async () => {
       setIsLoading(prev => ({ ...prev, provinces: true }));
       try {
         const response = await fetch(`${API_BASE_URL}/provinces`);
-        if (!response.ok) throw new Error('Failed to fetch provinces');
-        const data: ApiResponse = await response.json();
+        const data = await response.json();
         if (data.status === "success" && data.provinces) {
           setLocations(prev => ({ ...prev, provinces: data.provinces || [] }));
         }
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load provinces. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsLoading(prev => ({ ...prev, provinces: false }));
       }
     };
-
     fetchProvinces();
-  }, [toast]);
+  }, []);
 
-  // Fetch districts when province changes
   useEffect(() => {
     const fetchDistricts = async () => {
       if (!filters.province || filters.province === "all") {
         setLocations(prev => ({ ...prev, districts: [] }));
         return;
       }
-      
       setIsLoading(prev => ({ ...prev, districts: true }));
       try {
         const encodedProvince = encodeURIComponent(filters.province);
-        const response = await fetch(
-          `${API_BASE_URL}/province/${encodedProvince}/districts`
-        );
-        if (!response.ok) throw new Error('Failed to fetch districts');
-        const data: ApiResponse = await response.json();
+        const response = await fetch(`${API_BASE_URL}/province/${encodedProvince}/districts`);
+        const data = await response.json();
         if (data.status === "success" && data.districts) {
           setLocations(prev => ({ ...prev, districts: data.districts || [] }));
         }
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load districts. Please try again.",
-          variant: "destructive",
-        });
       } finally {
         setIsLoading(prev => ({ ...prev, districts: false }));
       }
     };
-
     fetchDistricts();
-  }, [filters.province, toast]);
+  }, [filters.province]);
 
-  // Update feedback statistics when data changes
+  // Feedback stats
   useEffect(() => {
     if (!feedbackData) return;
-
     const stats = {
       total: feedbackData.length,
       byProvince: {} as Record<string, number>,
       byDistrict: {} as Record<string, number>
     };
-
     feedbackData.forEach((item) => {
       if (item.citizenProvince) {
         stats.byProvince[item.citizenProvince] = (stats.byProvince[item.citizenProvince] || 0) + 1;
@@ -367,23 +313,13 @@ const Admin = () => {
         stats.byDistrict[item.citizenDistrict] = (stats.byDistrict[item.citizenDistrict] || 0) + 1;
       }
     });
-
     setFeedbackStats(stats);
   }, [feedbackData]);
-
-  // Update useEffect to handle stats data
-  useEffect(() => {
-    if (statsData) {
-      setStatistics(statsData);
-    }
-  }, [statsData]);
 
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return 'Invalid Date';
-      }
+      if (isNaN(date.getTime())) return 'Invalid Date';
       return new Intl.DateTimeFormat('en-US', {
         year: 'numeric',
         month: 'short',
@@ -391,7 +327,7 @@ const Admin = () => {
         hour: 'numeric',
         minute: 'numeric',
       }).format(date);
-    } catch (error) {
+    } catch {
       return 'Invalid Date';
     }
   };
@@ -419,23 +355,11 @@ const Admin = () => {
 
   const handleUpdateStatus = async () => {
     if (!selectedComplaint) return;
-    
     setIsSubmitting(true);
-    
     try {
       const adminResponder = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).username : 'Admin';
       const token = localStorage.getItem('token');
-      
-      console.log('Sending update request:', {
-        url: `${import.meta.env.VITE_BACKEND_URL}/api/complaints/update/${selectedComplaint._id}`,
-        data: {
-          status: newStatus,
-          response: responseText,
-          adminResponder
-        }
-      });
-
-      const response = await axios.put(
+      await axios.put(
         `${import.meta.env.VITE_BACKEND_URL}/api/complaints/update/${selectedComplaint._id}`,
         {
           status: newStatus,
@@ -449,22 +373,14 @@ const Admin = () => {
           }
         }
       );
-
-      console.log('Update response:', response.data);
-
-      // Refetch complaints and statistics
       await queryClient.invalidateQueries({ queryKey: ['complaints'] });
-      await queryClient.invalidateQueries({ queryKey: ['complaintStatistics'] });
-      
       toast({
         title: "Success",
         description: "Complaint updated successfully",
       });
-      
       setIsDialogOpen(false);
-      setResponseText(""); // Clear response text after successful update
-    } catch (error) {
-      console.error('Error updating complaint:', error);
+      setResponseText("");
+    } catch (error: unknown) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update complaint",
@@ -475,64 +391,46 @@ const Admin = () => {
     }
   };
 
-  if (isLoadingComplaints || isLoadingFeedback) {
-    return <div>Loading...</div>;
-  }
-
-  if (complaintsError || feedbackError) {
-    return <div>Error loading data</div>;
-  }
-
-  // Convert status data for chart
+  // Chart data
   const statusChartData = Object.entries(statusCounts).map(([status, count]) => ({
     name: status,
     value: count,
-    color: 
+    color:
       status === "Resolved" ? "#10b981" :
-      status === "In Progress" ? "#8b5cf6" :
-      status === "Under Review" ? "#f59e0b" :
-      "#3b82f6"
+      status==="Rejected"?"#ef4444":
+      status === "Pending" ? "#ffc107" :
+      "#ef4444"
+      
   }));
 
-  // Extract unique categories and districts for filters
-  const categories = Array.from(new Set(complaintsData.map(c => c.complaintType)));
-  const districts = Array.from(new Set(complaintsData.map(c => c.citizenDistrict)));
-
-  // Get unique provinces
-  const provinces = Array.from(new Set(complaintsData?.map(c => c.citizenProvince) || []));
-
+  // Tab switch
   const switchTab = (tab: string) => {
     setCurrentView(tab);
     navigate(`/admin/dashboard${tab !== 'dashboard' ? `?tab=${tab}` : ''}`);
   };
 
+  // Complaints tab
   const renderComplaintsTab = () => (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <Input
-            placeholder="Search"
-            value={filters.searchTerm}
-            onChange={handleSearchChange}
-          />
-        </div>
+      <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Input
+          placeholder="Search"
+          value={filters.searchTerm}
+          onChange={handleSearchChange}
+          className="w-full"
+        />
         <Select
           value={filters.province}
-          onValueChange={(value) => {
-            setFilters(prev => ({ ...prev, province: value, district: "all" }));
-          }}
+          onValueChange={(value) => setFilters(prev => ({ ...prev, province: value, district: "all" }))}
           disabled={isLoading.provinces}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select Province" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Provinces</SelectItem>
             {locations.provinces.map((province) => (
-              <SelectItem key={province} value={province}>
-                {province}
-              </SelectItem>
+              <SelectItem key={province} value={province}>{province}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -541,15 +439,13 @@ const Admin = () => {
           onValueChange={(value) => handleFilterChange("district", value)}
           disabled={filters.province === "all" || isLoading.districts}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select District" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Districts</SelectItem>
             {locations.districts.map((district) => (
-              <SelectItem key={district} value={district}>
-                {district}
-              </SelectItem>
+              <SelectItem key={district} value={district}>{district}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -557,22 +453,19 @@ const Admin = () => {
           value={filters.status}
           onValueChange={(value) => handleFilterChange("status", value)}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="Submitted">Submitted</SelectItem>
-            <SelectItem value="Under Review">Under Review</SelectItem>
-            <SelectItem value="In Progress">In Progress</SelectItem>
+
+            <SelectItem value="Pending">Pending</SelectItem>
             <SelectItem value="Resolved">Resolved</SelectItem>
             <SelectItem value="Rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
       </div>
-
-      {/* Complaints Table */}
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -588,7 +481,7 @@ const Admin = () => {
           <TableBody>
             {filteredComplaints.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-4 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-4 text-gray-500 text-sm">
                   No complaints found matching your filters
                 </TableCell>
               </TableRow>
@@ -597,25 +490,17 @@ const Admin = () => {
                 <TableRow key={complaint._id}>
                   <TableCell>{complaint.trackingCode}</TableCell>
                   <TableCell>{complaint.complaintType}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={complaint.status} />
-                  </TableCell>
+                  <TableCell><StatusBadge status={complaint.status} /></TableCell>
                   <TableCell>{formatDate(complaint.postingDate)}</TableCell>
+                  <TableCell>{complaint.citizenDistrict}, {complaint.citizenSector}</TableCell>
                   <TableCell>
-                    {complaint.citizenDistrict}, {complaint.citizenSector}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
+                    <div>
                       <div>{complaint.citizenEmail}</div>
                       <div className="text-gray-500">{complaint.citizenPhone}</div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewDetails(complaint)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(complaint)}>
                       Manage
                     </Button>
                   </TableCell>
@@ -625,233 +510,123 @@ const Admin = () => {
           </TableBody>
         </Table>
       </div>
-
-      {/* Complaint Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Total Complaints</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{filteredComplaints.length}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">By Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Object.entries(statusCounts).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{status}</span>
-                  <span className="font-medium">{count}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">By Province</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {Object.entries(provinceStats).map(([province, stats]) => (
-                <div key={province} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{province}</span>
-                  <span className="font-medium">{stats.total}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">By District</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {Object.entries(districtStats).map(([district, stats]) => (
-                <div key={district} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{district}</span>
-                  <span className="font-medium">{stats.total}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Detailed Province Statistics */}
-      {filters.province !== "all" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Detailed Statistics for {filters.province}</CardTitle>
-            <CardDescription>Complaints by District and Status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {Object.entries(provinceStats[filters.province]?.districts || {}).map(([district, stats]) => (
-                <div key={district} className="border-b pb-4">
-                  <h3 className="font-semibold text-lg">{district}</h3>
-                  <p className="text-sm text-gray-500">Total: {stats.total}</p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
-                    {Object.entries(stats.byStatus).map(([status, count]) => (
-                      <div key={status} className="bg-gray-50 p-2 rounded">
-                        <p className="text-sm font-medium text-gray-600">{status}</p>
-                        <p className="text-lg font-bold">{count}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 
+  if (isLoadingComplaints || isLoadingFeedback) {
+    return <div className="text-center py-10">Loading...</div>;
+  }
+  if (complaintsError || feedbackError) {
+    return <div className="text-center py-10 text-red-500">Error loading data</div>;
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold">Citizen Engagement System</h1>
-        <div className="text-sm text-gray-500">
+    <div className="max-w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold">Citizen Engagement System</h1>
+        <div className="text-xs sm:text-sm text-gray-500">
           Staff: Admin User | Role: Administrator
         </div>
       </div>
-
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex items-center">
-            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mr-3 sm:mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Complaints</p>
-              <p className="text-3xl font-bold">{filteredComplaints.length}</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Total Complaints</p>
+              <p className="text-2xl sm:text-3xl font-bold">{complaintsData?.length || 0}</p>
             </div>
           </CardContent>
         </Card>
-
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex items-center">
-            <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 mr-3 sm:mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Pending</p>
-              <p className="text-3xl font-bold">
-                {getStatusCount("Submitted") + getStatusCount("Under Review")}
-              </p>
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Pending</p>
+              <p className="text-2xl sm:text-3xl font-bold">{statusCounts["Pending"]}</p>
             </div>
           </CardContent>
         </Card>
-
+        
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex items-center">
-            <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.91 11.672a.375.375 0 010 .656l-5.603 3.113a.375.375 0 01-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">In Progress</p>
-              <p className="text-3xl font-bold">{getStatusCount("In Progress")}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border shadow-sm">
-          <CardContent className="p-4 flex items-center">
-            <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Resolved</p>
-              <p className="text-3xl font-bold">{getStatusCount("Resolved")}</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Resolved</p>
+              <p className="text-2xl sm:text-3xl font-bold">{statusCounts["Resolved"]}</p>
             </div>
           </CardContent>
         </Card>
-
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex items-center">
-            <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mr-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+            <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mr-3 sm:mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 0v7.5a3.75 3.75 0 003.75 3.75h1.5A3.75 3.75 0 0021 15.75v-7.5" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Feedback</p>
-              <p className="text-3xl font-bold">{feedbackData?.length || 0}</p>
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Total Feedback</p>
+              <p className="text-2xl sm:text-3xl font-bold">{feedbackStats.total}</p>
             </div>
           </CardContent>
         </Card>
       </div>
-      
-      {/* Navigation Tabs */}
-      <Tabs value={currentView} onValueChange={switchTab} className="w-full">
+      {/* Tabs */}
+      <Tabs value={currentView} className="w-full" onValueChange={switchTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="complaints">Complaints</TabsTrigger>
           <TabsTrigger value="feedback">Feedback</TabsTrigger>
         </TabsList>
-        
-        {/* Dashboard Tab Content */}
+        {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6">
-          {/* Recent Complaints Table - Similar to reference image */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Recent Complaints</CardTitle>
-              <CardDescription>Latest complaints received from citizens</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Recent Complaints</CardTitle>
+              <CardDescription className="text-sm font-semibold text-gray-600">Latest complaints from citizens</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div className="overflow-x-auto rounded-md">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>TRACKING CODE</TableHead>
-                      <TableHead>TYPE</TableHead>
-                      <TableHead>STATUS</TableHead>
-                      <TableHead>SUBMITTED</TableHead>
-                      <TableHead>ACTIONS</TableHead>
+                      <TableHead>Tracking Code</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {complaintsData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4 text-gray-500">
-                          No complaints found
+                        <TableCell colSpan={5} className="text-center py-4 text-sm text-gray-600">
+                          No complaints found.
                         </TableCell>
                       </TableRow>
                     ) : (
                       complaintsData.slice(0, 5).map((complaint) => (
                         <TableRow key={complaint._id}>
-                          <TableCell className="font-medium">{complaint.trackingCode}</TableCell>
+                          <TableCell>{complaint.trackingCode}</TableCell>
                           <TableCell>{complaint.complaintType}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={complaint.status as Status} />
-                          </TableCell>
+                          <TableCell><StatusBadge status={complaint.status} /></TableCell>
                           <TableCell>{formatDate(complaint.postingDate)}</TableCell>
                           <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewDetails(complaint)}
-                            >
-                              View
+                            <Button variant="outline" size="sm" onClick={() => handleViewDetails(complaint)}>
+                              View Details
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -862,194 +637,154 @@ const Admin = () => {
               </div>
             </CardContent>
           </Card>
-
           {/* Charts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Category Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Complaints by Category</CardTitle>
-                <CardDescription>Distribution of complaints by category</CardDescription>
+                <CardTitle className="text-base sm:text-lg">Complaints by Category</CardTitle>
+                <CardDescription className="text-sm font-semibold text-gray-600">
+                  Distribution of complaints by type
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-80">
-                  <ChartContainer config={{}} className="h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={Object.entries(categoryCounts).map(([category, count]) => ({
-                          name: category,
-                          value: count,
-                        }))}
-                        margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
-                      >
-                        <XAxis 
-                          dataKey="name" 
-                          angle={-45} 
-                          textAnchor="end"
-                          height={100}
-                          interval={0}
-                          tick={{ fontSize: 12 }}
-                        />
-                        <YAxis />
-                        <RechartsTooltip 
-                          formatter={(value: number) => [`${value} complaints`, 'Count']}
-                          labelFormatter={(label) => `Category: ${label}`}
-                        />
-                        <Bar 
-                          dataKey="value" 
-                          fill="#22c55e"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
+                <div className="h-[250px] sm:h-[300px] lg:h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={Object.entries(categoryCounts).map(([category, count]) => ({
+                        category,
+                        count
+                      }))}
+                      margin={{ top: 20, right: 10, left: 10, bottom: 60 }}
+                    >
+                      <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} interval={0} tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <RechartsTooltip />
+                      <Bar dataKey="count" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
-
-            {/* Status Distribution */}
             <Card>
               <CardHeader>
-                <CardTitle>Status Distribution</CardTitle>
-                <CardDescription>Current status of all complaints</CardDescription>
+                <CardTitle className="text-base sm:text-lg font-semibold">Status Distribution</CardTitle>
+                <CardDescription className="text-sm font-semibold text-gray-600">
+                  Current status distribution of all complaints
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-80">
-                  <ChartContainer config={{}} className="h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={statusChartData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {statusChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
+                <div className="h-[250px] sm:h-[300px] lg:h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusChartData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {statusChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
-        
-        {/* Complaints Tab Content */}
+        {/* Complaints Tab */}
         <TabsContent value="complaints" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Complaints Management</CardTitle>
-              <CardDescription>Manage and respond to citizen complaints</CardDescription>
-              <Tabs defaultValue="all" className="mt-4" onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-5 max-w-lg">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="Submitted">Submitted</TabsTrigger>
-                  <TabsTrigger value="Under Review">Under Review</TabsTrigger>
-                  <TabsTrigger value="In Progress">In Progress</TabsTrigger>
-                  <TabsTrigger value="Resolved">Resolved</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <CardTitle className="text-base sm:text-lg">Complaints Management</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Manage and respond to complaints from citizens</CardDescription>
             </CardHeader>
             <CardContent>
               {renderComplaintsTab()}
             </CardContent>
           </Card>
         </TabsContent>
-        
-        {/* Feedback Tab Content */}
-        <TabsContent value="feedback">
+        {/* Feedback Tab */}
+        <TabsContent value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Citizen Feedback</CardTitle>
-              <CardDescription>Review feedback submitted by citizens</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Citizen Feedback</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Review feedback submitted by citizens</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {/* Feedback Table */}
-                <div className="rounded-md border">
+                <div className="overflow-x-auto rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Feedback</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Contact</TableHead>
-                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {feedbackData?.map((item: Feedback) => (
+                      {feedbackData.map((item: Feedback) => (
                         <TableRow key={item._id}>
-                          <TableCell className="max-w-md">
+                          <TableCell className="max-w-[150px] sm:max-w-md text-xs sm:text-sm">
                             <p className="truncate">{item.feedback}</p>
                           </TableCell>
-                            <TableCell>
-                            <div className="text-sm">
+                          <TableCell>
+                            <div className="text-xs sm:text-sm">
                               <div>{item.citizenProvince}</div>
-                              <div className="text-gray-500">
-                                {item.citizenDistrict}, {item.citizenSector}
-                              </div>
+                              <div className="text-gray-500">{item.citizenDistrict}, {item.citizenSector}</div>
                             </div>
-                            </TableCell>
-                            <TableCell>
-                            <div className="text-sm">
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-xs sm:text-sm">
                               <div>{item.citizenEmail}</div>
                               <div className="text-gray-500">{item.citizenPhone}</div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Button variant="outline" size="sm">View Details</Button>
-                            </TableCell>
-                          </TableRow>
+                        </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
-
-                {/* Feedback Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Total Feedback</CardTitle>
+                      <CardTitle className="text-base sm:text-lg">Total Feedback</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-3xl font-bold">{feedbackStats.total}</p>
-            </CardContent>
-          </Card>
-        
-          <Card>
-            <CardHeader>
-                      <CardTitle className="text-lg">By Province</CardTitle>
-            </CardHeader>
-            <CardContent>
-                      <div className="space-y-2">
+                      <p className="text-2xl sm:text-3xl font-bold">{feedbackStats.total}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base sm:text-lg">By Province</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
                         {Object.entries(feedbackStats.byProvince).map(([province, count]) => (
                           <div key={province} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{province}</span>
+                            <span className="text-xs sm:text-sm text-gray-600">{province}</span>
                             <span className="font-medium">{count}</span>
-                        </div>
+                          </div>
                         ))}
                       </div>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">By District</CardTitle>
+                      <CardTitle className="text-base sm:text-lg">By District</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
                         {Object.entries(feedbackStats.byDistrict).map(([district, count]) => (
                           <div key={district} className="flex justify-between items-center">
-                            <span className="text-sm text-gray-600">{district}</span>
-                            <span className="font-medium">{count}</span>
+                            <span className="text-xs sm:text-sm text-gray-600">{district}</span>
+                            <span className="font-semibold">{count}</span>
                           </div>
                         ))}
                       </div>
@@ -1061,95 +796,91 @@ const Admin = () => {
           </Card>
         </TabsContent>
       </Tabs>
-
       {/* Complaint Detail Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-[100vw] p-10 sm:max-w-2xl md:max-w-3xl w-full">
           {selectedComplaint && (
             <>
               <DialogHeader>
-                <DialogTitle>Complaint Details - {selectedComplaint.trackingCode}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-sm sm:text-lg font-medium">
+                  Complaint Details - {selectedComplaint.trackingCode}
+                </DialogTitle>
+                <DialogDescription className="text-xs sm:text-gray-500">
                   Submitted on {formatDate(selectedComplaint.postingDate)}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 py-4 max-h-[70vh] overflow-y-auto">
                 <div>
-                  <Label className="text-gray-500">Complaint Type</Label>
-                  <p className="font-medium">{selectedComplaint.complaintType}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-500">Contact</Label>
-                  <p className="font-medium">{selectedComplaint.citizenPhone}</p>
+                  <Label className="text-xs sm:text-sm font-semibold text-gray-500">Complaint Type</Label>
+                  <p className="font-medium text-sm sm:text-base">{selectedComplaint.complaintType}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-500">ID/Email</Label>
-                  <p className="font-medium">{selectedComplaint.citizenEmail}</p>
+                  <Label className="text-xs sm:text-sm font-semibold text-gray-500">Contact</Label>
+                  <p className="font-medium text-sm sm:text-base">{selectedComplaint.citizenPhone}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-500">Location</Label>
-                  <p className="font-medium">{selectedComplaint.citizenDistrict}, {selectedComplaint.citizenSector}</p>
+                  <Label className="text-xs sm:text-sm font-semibold text-gray-500">ID/Email</Label>
+                  <p className="font-medium text-sm sm:text-base">{selectedComplaint.citizenEmail}</p>
                 </div>
-                <div className="md:col-span-2">
-                  <Label className="text-gray-500">Description</Label>
-                  <p className="font-medium">{selectedComplaint.complaint}</p>
+                <div>
+                  <Label className="text-xs sm:text-sm font-semibold text-gray-500">Location</Label>
+                  <p className="font-medium text-sm sm:text-base">{selectedComplaint.citizenDistrict}, {selectedComplaint.citizenSector}</p>
                 </div>
-                
-                <div className="md:col-span-2 border-t pt-4">
-                  <Label htmlFor="status">Update Status</Label>
-                  <Select 
-                    value={newStatus} 
-                    onValueChange={(value: Status) => setNewStatus(value)}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select status" />
+                <div className="sm:col-span-2">
+                  <Label className="text-xs sm:text-sm font-semibold text-gray-600">Description</Label>
+                  <p className="font-medium text-sm sm:text-base">{selectedComplaint.complaint}</p>
+                </div>
+                <div className="sm:col-span-2 border-t pt-4">
+                  <Label htmlFor="status" className="text-xs sm:text-sm">Update Status</Label>
+                  <Select value={newStatus} onValueChange={(value: Status) => setNewStatus(value)}>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Submitted">Submitted</SelectItem>
-                      <SelectItem value="Under Review">Under Review</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
                       <SelectItem value="In Progress">In Progress</SelectItem>
                       <SelectItem value="Resolved">Resolved</SelectItem>
                       <SelectItem value="Rejected">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                
-                <div className="md:col-span-2">
-                  <Label htmlFor="response">Official Response</Label>
+                <div className="sm:col-span-2">
+                  <Label htmlFor="response" className="text-xs sm:text-sm">Official Response</Label>
                   <Textarea
                     id="response"
                     placeholder="Enter your response to the citizen"
                     value={responseText}
                     onChange={(e) => setResponseText(e.target.value)}
                     rows={4}
-                    className="mt-1"
+                    className="mt-1 w-full"
                   />
                 </div>
-
                 {selectedComplaint.response && (
-                  <div className="md:col-span-2">
-                    <Label className="text-gray-500">Previous Response</Label>
-                    <div className="mt-1 p-3 bg-gray-50 rounded-md">
-                      <p className="text-sm text-gray-600">
+                  <div className="sm:col-span-2">
+                    <Label className="text-gray-600 text-xs sm:text-sm font-semibold">Previous Response</Label>
+                    <div className="mt-2 p-3 bg-gray-100 rounded">
+                      <p className="text-gray-600 text-xs sm:text-sm">
                         {selectedComplaint.adminResponder && (
-                          <span className="font-medium">By {selectedComplaint.adminResponder} on {formatDate(selectedComplaint.responseDate || '')}</span>
+                          <span className="font-semibold">By {selectedComplaint.adminResponder} on {formatDate(selectedComplaint.responseDate || '')}</span>
                         )}
                       </p>
-                      <p className="mt-2">{selectedComplaint.response}</p>
+                      <p className="mt-2 text-sm">{selectedComplaint.response}</p>
                     </div>
                   </div>
                 )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button
+                  variant="default"
                   onClick={handleUpdateStatus}
-                  disabled={isSubmitting || !newStatus}
-                  className="bg-green-500 hover:bg-green-600"
+                  disabled={isSubmitting || !newStatus || selectedComplaint?.status === 'Resolved'}
+                  className="bg-green-600 hover:bg-green-700"
                 >
-                  {isSubmitting ? "Updating..." : "Update Complaint"}
+                  {isSubmitting ? "Updating..." : "Submit Update"}
                 </Button>
               </DialogFooter>
             </>
