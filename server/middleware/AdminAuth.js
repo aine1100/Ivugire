@@ -12,7 +12,7 @@ async function adminAuth(req,res,next){
         if(!decoded){
             return res.status(401).json({message:"Unauthorized"})
         }
-        if(decoded.role!=="admin"){
+        if(decoded.role!=="admin" || decoded.role !== "Mayor" || decoded.role !== "Governor"|| decoded.role !== "SectorLeader"|| decoded.role !== "VillageLeader" ){
             return res.status(403).json({message:"Forbidden"})
         }
         req.admin=decoded
